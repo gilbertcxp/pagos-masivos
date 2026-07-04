@@ -89,17 +89,13 @@ export default function CargadorSolicitud() {
       return;
     }
 
-    // Obtener número consecutivo de solicitud
-    const { data: numeroDato } = await supabase.rpc("generar_numero_solicitud");
-    const numero = String(numeroDato ?? "");
-
     // 1) Crear el proceso (batch) en estado borrador
+    //    El trigger set_numero_solicitud asigna numero_solicitud automáticamente
     const { data: batch, error: eBatch } = await supabase
       .from("payment_batches")
       .insert({
         user_id: user.id,
         estado: "borrador",
-        numero_solicitud: numero || null,
         excel_file_name: fileName,
         grupo: datos.meta.grupo,
         contrato: contrato.trim() || null,
@@ -164,7 +160,7 @@ export default function CargadorSolicitud() {
     });
 
     setBatchId(batch.id);
-    setNumeroSolicitud(batch.numero_solicitud ?? numero);
+    setNumeroSolicitud(batch.numero_solicitud ?? "");
     setFase("guardado");
   }
 
