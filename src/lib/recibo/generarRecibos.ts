@@ -120,13 +120,33 @@ function reciboPdf(numero: string, pago: PagoRecibo, meta: MetaRecibo): ArrayBuf
 
   // ---------- Encabezado ----------
   // Logo (imagen si viene; si no, un distintivo simple)
+  let logoOk = false;
   if (meta.logoDataUrl) {
     try {
-      doc.addImage(meta.logoDataUrl, "PNG", M, 14, 42, 16, undefined, "FAST");
+      // Detectar dimensiones reales del PNG (bytes 16..23 del header)
+      const b64 = meta.logoDataUrl.split(",")[1] ?? "";
+      const bin = typeof atob === "function" ? atob(b64.slice(0, 40)) : Buffer.from(b64.slice(0, 40), "base64").toString("binary");
+      const bytes: number[] = [];
+      for (let i = 0; i < bin.length; i++) bytes.push(bin.charCodeAt(i));
+      let w = 0, h = 0;
+      if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes.length >= 24) {
+        w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+        h = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+      }
+      const maxW = 48, maxH = 22;
+      let drawW = maxW, drawH = maxH;
+      if (w > 0 && h > 0) {
+        const escala = Math.min(maxW / w, maxH / h);
+        drawW = w * escala;
+        drawH = h * escala;
+      }
+      doc.addImage(meta.logoDataUrl, "PNG", M, 12, drawW, drawH, undefined, "FAST");
+      logoOk = true;
     } catch {
-      /* si falla, se ignora */
+      /* si falla, se dibuja el distintivo de respaldo */
     }
-  } else {
+  }
+  if (!logoOk) {
     doc.setFillColor(...ROJO);
     doc.circle(M + 5, 20, 5, "F");
     doc.setTextColor(255, 255, 255);

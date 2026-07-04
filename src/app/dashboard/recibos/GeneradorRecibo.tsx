@@ -10,6 +10,23 @@ const money = (n: number) =>
 const slug = (s: string) =>
   (s || "grupo").normalize("NFD").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_").slice(0, 40);
 
+/** Descarga el logo público del proyecto y lo convierte a dataURL (PNG). */
+async function cargarLogo(url: string): Promise<string | undefined> {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return undefined;
+    const blob = await r.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 type Batch = {
   id: string;
   grupo: string | null;
@@ -129,6 +146,9 @@ export default function GeneradorRecibo() {
         base = `REC-${new Date().getFullYear()}-${String((count ?? 0) + 1).padStart(4, "0")}`;
       }
 
+      // Cargar el logo (una sola vez) como dataURL para incrustarlo en el PDF
+      const logoDataUrl = await cargarLogo("/assets/logo-la-primera.png");
+
       const ahora = new Date();
       const meta: MetaRecibo = {
         empresa: "UD GROUP DOMINICANA",
@@ -140,6 +160,7 @@ export default function GeneradorRecibo() {
         comprobante: compName || "—",
         usuario,
         baseNumero: base,
+        logoDataUrl,
       };
 
       // Construir el ZIP con un recibo por transacción
