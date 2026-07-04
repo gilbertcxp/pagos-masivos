@@ -133,7 +133,7 @@ function reciboPdf(numero: string, pago: PagoRecibo, meta: MetaRecibo): ArrayBuf
         w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
         h = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
       }
-      const maxW = 48, maxH = 22;
+      const maxW = 75, maxH = 32;
       let drawW = maxW, drawH = maxH;
       if (w > 0 && h > 0) {
         const escala = Math.min(maxW / w, maxH / h);
