@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pagos Masivos · Banreservas
 
-## Getting Started
+Aplicación web para automatizar **pagos masivos a proveedores**: importar un
+Excel de solicitud, generar el archivo **TXT** compatible con el banco, guardar
+el historial y generar recibos de pago.
 
-First, run the development server:
+## Tecnologías
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Next.js 16** (App Router, TypeScript)
+- **Tailwind CSS**
+- **Supabase** (base de datos PostgreSQL, autenticación y almacenamiento)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Requisitos
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Node.js 20+ y npm
+- Un proyecto en [Supabase](https://supabase.com)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Puesta en marcha (local)
 
-## Learn More
+1. Instalar dependencias:
 
-To learn more about Next.js, take a look at the following resources:
+   ```bash
+   npm install
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. Copiar la plantilla de variables y rellenarla con tus claves de Supabase
+   (Project Settings → API):
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   ```bash
+   cp .env.example .env.local
+   ```
 
-## Deploy on Vercel
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://TU-PROYECTO.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-anon-key
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+3. Ejecutar la base de datos: en Supabase → SQL Editor, correr el contenido de
+   [`supabase/schema.sql`](supabase/schema.sql).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4. Levantar el servidor de desarrollo:
+
+   ```bash
+   npm run dev
+   ```
+
+   Abrir http://localhost:3000
+
+## Despliegue en Vercel
+
+1. Subir este repositorio a GitHub.
+2. En [vercel.com](https://vercel.com) → **Add New → Project** → importar el repo.
+3. En **Environment Variables**, agregar:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. **Deploy**. Cada push a la rama principal se publicará automáticamente.
+
+## Módulos
+
+- **Dashboard** — indicadores y últimos pagos
+- **Solicitudes de Pago** — cargar y validar el Excel
+- **Generar TXT** — tipo de pago (Interbancaria / Terceros) y archivo del banco
+- **Historial** — búsqueda y descarga de procesos
+- **Recibos** — comprobante del banco y recibo generado
+- **Usuarios** — administración y roles
+- **Configuración**
+
+## Seguridad
+
+Las claves `service_role` y la contraseña de la base de datos **nunca** se
+suben al repositorio. El archivo `.env.local` está en `.gitignore`.
