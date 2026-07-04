@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { detectarTipoPago, type PagoRow } from "@/lib/excel/parseSolicitud";
 import {
@@ -8,6 +9,7 @@ import {
   type ConfigOrigen,
   type ResultadoTxt,
 } from "@/lib/txt/generarTerceros";
+import { registrarTxtGenerado } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -38,6 +40,9 @@ type Grupo = {
 
 export default function GeneradorTxt() {
   const supabase = createClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const batchIdUrl = searchParams.get("batch");
   const [solicitudes, setSolicitudes] = useState<Batch[]>([]);
   const [cargando, setCargando] = useState(true);
   const [sel, setSel] = useState<Batch | null>(null);
@@ -57,6 +62,7 @@ export default function GeneradorTxt() {
     const { data } = await supabase
       .from("payment_batches")
       .select("id, grupo, excel_file_name, total_registros, monto_total, estado, created_at")
+      .in("estado", ["publicada", "en_revision", "txt_generado", "borrador"])
       .order("created_at", { ascending: false });
     setSolicitudes(data ?? []);
     setCargando(false);
@@ -65,6 +71,20 @@ export default function GeneradorTxt() {
   useEffect(() => {
     cargarSolicitudes();
   }, [cargarSolicitudes]);
+
+  // Si viene ?batch=xxx, autoselecciono la solicitud
+  useEffect(() => {
+    if (!batchIdUrl || sel) return;
+    (async () => {
+      const { data } = await supabase
+        .from("payment_batches")
+        .select("id, grupo, excel_file_name, total_registros, monto_total, estado, created_at")
+        .eq("id", batchIdUrl)
+        .single();
+      if (data) seleccionar(data as Batch);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchIdUrl]);
 
   async function seleccionar(b: Batch) {
     setSel(b);
@@ -169,13 +189,25 @@ export default function GeneradorTxt() {
           .from("payment_batches")
           .update({
             tipo_pago: "terceros",
-            estado: "txt_generado",
             txt_file_name: nombreArchivo,
             txt_storage_path: path,
             txt_generated_at: new Date().toISOString(),
           })
           .eq("id", sel.id);
+
+        // Cambio de estado y auditoría via server action
+        try {
+          await registrarTxtGenerado(sel.id, nombreArchivo, "terceros");
+        } catch (e) {
+          console.error("No se pudo registrar auditoría", e);
+        }
+
         cargarSolicitudes();
+
+        // Si vinimos desde Contabilidad, volver ahí tras generar
+        if (batchIdUrl) {
+          setTimeout(() => router.push(`/dashboard/contabilidad/${sel.id}`), 500);
+        }
       }
     } catch (e) {
       console.error("No se pudo guardar en historial", e);

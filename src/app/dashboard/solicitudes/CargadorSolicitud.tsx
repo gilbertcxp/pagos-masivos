@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
 import {
   parseSolicitudRows,
   type ParsedSolicitud,
 } from "@/lib/excel/parseSolicitud";
+import { publicarSolicitud } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", {
@@ -16,7 +18,7 @@ const money = (n: number) =>
     maximumFractionDigits: 2,
   }).format(n);
 
-type Fase = "inicial" | "previsualizando" | "guardando" | "guardado";
+type Fase = "inicial" | "previsualizando" | "guardando" | "guardado" | "publicando";
 
 export default function CargadorSolicitud() {
   const router = useRouter();
@@ -25,7 +27,12 @@ export default function CargadorSolicitud() {
   const [file, setFile] = useState<File | null>(null);
   const [hojas, setHojas] = useState<string[]>([]);
   const [datos, setDatos] = useState<ParsedSolicitud | null>(null);
+  const [contrato, setContrato] = useState("");
   const [error, setError] = useState("");
+
+  // Datos del batch creado
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [numeroSolicitud, setNumeroSolicitud] = useState<string>("");
 
   async function leerArchivo(f: File) {
     setError("");
@@ -61,6 +68,9 @@ export default function CargadorSolicitud() {
     setFile(null);
     setFileName("");
     setHojas([]);
+    setContrato("");
+    setBatchId(null);
+    setNumeroSolicitud("");
     setError("");
   }
 
@@ -79,21 +89,27 @@ export default function CargadorSolicitud() {
       return;
     }
 
-    // 1) Crear el proceso (batch)
+    // Obtener número consecutivo de solicitud
+    const { data: numeroDato } = await supabase.rpc("generar_numero_solicitud");
+    const numero = String(numeroDato ?? "");
+
+    // 1) Crear el proceso (batch) en estado borrador
     const { data: batch, error: eBatch } = await supabase
       .from("payment_batches")
       .insert({
         user_id: user.id,
         estado: "borrador",
+        numero_solicitud: numero || null,
         excel_file_name: fileName,
         grupo: datos.meta.grupo,
+        contrato: contrato.trim() || null,
         encargado: datos.meta.encargado,
         solicitado_por: datos.meta.solicitadoPor,
         total_registros: datos.totalRegistros,
         total_beneficiarios: datos.beneficiarios,
         monto_total: datos.montoTotal,
       })
-      .select("id")
+      .select("id, numero_solicitud")
       .single();
 
     if (eBatch || !batch) {
@@ -135,7 +151,35 @@ export default function CargadorSolicitud() {
       return;
     }
 
+    // 4) Auditoría de creación
+    const { data: perfil } = await supabase.from("profiles").select("nombre, correo, rol").eq("id", user.id).single();
+    await supabase.from("audit_log").insert({
+      batch_id: batch.id,
+      user_id: user.id,
+      user_nombre: perfil?.nombre || perfil?.correo || null,
+      user_rol: perfil?.rol ?? null,
+      accion: "crear",
+      descripcion: `Solicitud ${batch.numero_solicitud ?? ""} creada (${datos.totalRegistros} pagos)`,
+      meta: { archivo: fileName, grupo: datos.meta.grupo, contrato: contrato.trim() || null },
+    });
+
+    setBatchId(batch.id);
+    setNumeroSolicitud(batch.numero_solicitud ?? numero);
     setFase("guardado");
+  }
+
+  async function publicar() {
+    if (!batchId) return;
+    setFase("publicando");
+    setError("");
+    try {
+      await publicarSolicitud(batchId);
+      router.push("/dashboard/solicitudes");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo publicar la solicitud.");
+      setFase("guardado");
+    }
   }
 
   // ---------- Vistas ----------
@@ -159,17 +203,34 @@ export default function CargadorSolicitud() {
   if (fase === "guardado") {
     return (
       <Encabezado>
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 py-12 text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 text-white">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7"><polyline points="20 6 9 17 4 12" /></svg>
           </div>
-          <p className="text-lg font-semibold text-slate-800">¡Solicitud guardada!</p>
-          <p className="text-sm text-slate-500">Se registraron {datos?.totalRegistros} pagos por {money(datos?.montoTotal ?? 0)}.</p>
-          <div className="mt-6 flex gap-3">
+          <p className="text-lg font-semibold text-slate-800">¡Solicitud guardada en borrador!</p>
+          <p className="text-sm text-slate-600">
+            <b>{numeroSolicitud}</b> · {datos?.totalRegistros} pagos · {money(datos?.montoTotal ?? 0)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">Ahora puedes publicarla para que Contabilidad la revise.</p>
+
+          {error && <Alerta>{error}</Alerta>}
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <button onClick={reiniciar} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cargar otra</button>
-            <button onClick={() => router.push("/dashboard/generar")} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Continuar a Generar TXT →</button>
+            <Link href="/dashboard/solicitudes" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Ver mis solicitudes</Link>
+            <button onClick={publicar} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700">
+              Publicar solicitud →
+            </button>
           </div>
         </div>
+      </Encabezado>
+    );
+  }
+
+  if (fase === "publicando") {
+    return (
+      <Encabezado>
+        <div className="rounded-2xl border border-slate-200 bg-white py-12 text-center text-slate-500">Publicando…</div>
       </Encabezado>
     );
   }
@@ -177,8 +238,6 @@ export default function CargadorSolicitud() {
   // previsualizando / guardando
   if (!datos) return null;
   const faltanColumnas = datos.columnasFaltantes.length > 0;
-  const interbancarias = datos.pagos.filter((p) => p.tipoPago === "interbancaria").length;
-  const terceros = datos.pagos.filter((p) => p.tipoPago === "terceros").length;
 
   return (
     <Encabezado>
@@ -210,17 +269,23 @@ export default function CargadorSolicitud() {
         </Alerta>
       ) : (
         <>
+          {/* Datos del contrato */}
+          <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4">
+            <label className="mb-1 block text-sm font-medium text-slate-700">Número o nombre del contrato (opcional)</label>
+            <input
+              value={contrato}
+              onChange={(e) => setContrato(e.target.value)}
+              placeholder="Ej: CTR-2026-045 · Renta de locales"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+
           {/* Resumen */}
           <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Tarjeta titulo="Pagos" valor={String(datos.totalRegistros)} />
             <Tarjeta titulo="Monto total" valor={money(datos.montoTotal)} />
             <Tarjeta titulo="Beneficiarios" valor={String(datos.beneficiarios)} />
             <Tarjeta titulo="Con errores" valor={String(datos.totalConErrores)} alerta={datos.totalConErrores > 0} />
-          </div>
-
-          <div className="mb-4 flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-700">Interbancarias: {interbancarias}</span>
-            <span className="rounded-full bg-sky-100 px-3 py-1 font-medium text-sky-700">Terceros (Banreservas): {terceros}</span>
           </div>
 
           {/* Tabla */}
@@ -234,7 +299,6 @@ export default function CargadorSolicitud() {
                   <th className="px-3 py-2 text-left font-medium">Banco</th>
                   <th className="px-3 py-2 text-left font-medium">Cuenta</th>
                   <th className="px-3 py-2 text-right font-medium">Monto</th>
-                  <th className="px-3 py-2 text-left font-medium">Tipo</th>
                   <th className="px-3 py-2 text-left font-medium">Estado</th>
                 </tr>
               </thead>
@@ -248,15 +312,8 @@ export default function CargadorSolicitud() {
                     <td className="px-3 py-2 text-slate-600">{p.cuenta || "—"}</td>
                     <td className="px-3 py-2 text-right text-slate-800">{money(p.monto)}</td>
                     <td className="px-3 py-2">
-                      <span className={"rounded-full px-2 py-0.5 text-xs " + (p.tipoPago === "terceros" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700")}>
-                        {p.tipoPago === "terceros" ? "Terceros" : "Interbanc."}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
                       {p.errores.length ? (
                         <span className="text-xs text-red-600" title={p.errores.join("\n")}>⚠ {p.errores.length} error(es)</span>
-                      ) : p.advertencias.length ? (
-                        <span className="text-xs text-amber-600" title={p.advertencias.join("\n")}>● aviso</span>
                       ) : (
                         <span className="text-xs text-emerald-600">✓ ok</span>
                       )}
@@ -272,11 +329,11 @@ export default function CargadorSolicitud() {
           {/* Acciones */}
           <div className="mt-5 flex items-center justify-end gap-3">
             {datos.totalConErrores > 0 && (
-              <p className="mr-auto text-sm text-amber-600">Hay {datos.totalConErrores} fila(s) con errores. Puedes guardar el borrador, pero deberás corregirlas antes de generar el TXT.</p>
+              <p className="mr-auto text-sm text-amber-600">Hay {datos.totalConErrores} fila(s) con errores. Puedes guardar el borrador y corregirlas antes de publicar.</p>
             )}
             <button onClick={reiniciar} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancelar</button>
             <button onClick={guardar} disabled={fase === "guardando"} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-60">
-              {fase === "guardando" ? "Guardando…" : "Guardar solicitud"}
+              {fase === "guardando" ? "Guardando…" : "Guardar como borrador"}
             </button>
           </div>
         </>
@@ -290,10 +347,13 @@ export default function CargadorSolicitud() {
 function Encabezado({ children }: { children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <div>
-        <span className="mb-1 inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">Módulo 1</span>
-        <h1 className="text-2xl font-bold text-slate-800">Cargar Solicitud de Pago</h1>
-        <p className="text-slate-500">Sube el Excel del grupo, revisa la vista previa y guárdalo.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <span className="mb-1 inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">Módulo 1 · Contratos</span>
+          <h1 className="text-2xl font-bold text-slate-800">Nueva Solicitud de Pago</h1>
+          <p className="text-slate-500">Carga el Excel, revisa el resumen y publica la solicitud.</p>
+        </div>
+        <Link href="/dashboard/solicitudes" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Ver mis solicitudes</Link>
       </div>
       {children}
     </div>

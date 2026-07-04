@@ -2,15 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/login/actions";
+import { esAdmin, esContabilidad, esContratos, type Rol } from "@/lib/auth/roles";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: "grid" },
-  { href: "/dashboard/solicitudes", label: "Solicitudes de Pago", icon: "upload" },
-  { href: "/dashboard/generar", label: "Generar TXT", icon: "file" },
-  { href: "/dashboard/historial", label: "Historial", icon: "clock" },
-  { href: "/dashboard/recibos", label: "Recibos", icon: "receipt" },
-  { href: "/dashboard/usuarios", label: "Usuarios", icon: "users" },
-  { href: "/dashboard/configuracion", label: "Configuración", icon: "settings" },
+type NavItem = { href: string; label: string; icon: string; ver: (r: Rol) => boolean };
+
+const NAV: NavItem[] = [
+  { href: "/dashboard",                label: "Dashboard",           icon: "grid",     ver: () => true },
+  { href: "/dashboard/solicitudes",    label: "Solicitudes de Pago", icon: "upload",   ver: (r) => esContratos(r) },
+  { href: "/dashboard/contabilidad",   label: "Contabilidad",        icon: "check",    ver: (r) => esContabilidad(r) },
+  { href: "/dashboard/recibos",        label: "Recibos",             icon: "receipt",  ver: (r) => esContabilidad(r) || esAdmin(r) },
+  { href: "/dashboard/historial",      label: "Historial",           icon: "clock",    ver: () => true },
+  { href: "/dashboard/usuarios",       label: "Usuarios",            icon: "users",    ver: (r) => esAdmin(r) },
+  { href: "/dashboard/configuracion",  label: "Configuración",       icon: "settings", ver: (r) => esAdmin(r) },
 ];
 
 function Icon({ name }: { name: string }) {
@@ -29,8 +32,8 @@ function Icon({ name }: { name: string }) {
       return (<svg {...common}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>);
     case "upload":
       return (<svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>);
-    case "file":
-      return (<svg {...common}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>);
+    case "check":
+      return (<svg {...common}><path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="10" /></svg>);
     case "clock":
       return (<svg {...common}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>);
     case "receipt":
@@ -41,6 +44,15 @@ function Icon({ name }: { name: string }) {
       return (<svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>);
     default:
       return <svg {...common} />;
+  }
+}
+
+function etiquetaRol(rol: Rol | null | undefined): string {
+  switch (rol) {
+    case "administrador": return "Administrador";
+    case "contratos":     return "Contratos";
+    case "contabilidad":  return "Contabilidad";
+    default:              return "Usuario";
   }
 }
 
@@ -63,7 +75,8 @@ export default async function DashboardLayout({
     .single();
 
   const nombre = profile?.nombre || user.email?.split("@")[0] || "Usuario";
-  const rol = profile?.rol ?? "usuario";
+  const rol = (profile?.rol ?? "usuario") as Rol;
+  const items = NAV.filter((n) => n.ver(rol));
 
   return (
     <div className="flex min-h-screen bg-slate-100">
@@ -80,7 +93,7 @@ export default async function DashboardLayout({
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV.map((item) => (
+          {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -95,7 +108,7 @@ export default async function DashboardLayout({
         <div className="border-t border-slate-800 p-4">
           <div className="mb-3">
             <p className="text-sm font-medium text-white truncate">{nombre}</p>
-            <p className="text-xs text-slate-400 capitalize">{rol}</p>
+            <p className="text-xs text-slate-400">{etiquetaRol(rol)}</p>
           </div>
           <form action={logout}>
             <button
