@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { construirZipRecibos, type PagoRecibo, type MetaRecibo } from "@/lib/recibo/generarRecibos";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
+
+const slug = (s: string) =>
+  (s || "grupo").normalize("NFD").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_").slice(0, 40);
 
 type Batch = {
   id: string;
@@ -21,7 +25,6 @@ type Receipt = {
   id: string;
   numero_recibo: string | null;
   comprobante_file_name: string | null;
-  comprobante_storage_path: string | null;
   recibo_storage_path: string | null;
   estado_pago: string | null;
 };
@@ -36,6 +39,7 @@ export default function GeneradorRecibo() {
   const [estadoPago, setEstadoPago] = useState("confirmado");
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -55,31 +59,61 @@ export default function GeneradorRecibo() {
   async function seleccionar(b: Batch) {
     setSel(b);
     setError("");
+    setOk("");
     setComprobante(null);
     const { data } = await supabase
       .from("receipts")
-      .select("id, numero_recibo, comprobante_file_name, comprobante_storage_path, recibo_storage_path, estado_pago")
+      .select("id, numero_recibo, comprobante_file_name, recibo_storage_path, estado_pago")
       .eq("batch_id", b.id)
       .maybeSingle();
     setRecibo((data as Receipt) ?? null);
     if (data?.estado_pago) setEstadoPago(data.estado_pago);
   }
 
+  function descargarZip(blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    a.download = `Recibos_${slug(sel?.grupo ?? "grupo")}_${fecha}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
   async function generar() {
     if (!sel) return;
     setTrabajando(true);
     setError("");
+    setOk("");
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Sesión expirada. Inicia sesión de nuevo.");
 
-      // Nombre del usuario
       const { data: perfil } = await supabase.from("profiles").select("nombre, correo").eq("id", user.id).single();
       const usuario = perfil?.nombre || perfil?.correo || "Usuario";
 
-      // 1) Subir comprobante (si se adjuntó uno nuevo)
+      // Cargar los pagos del proceso
+      const { data: pays } = await supabase
+        .from("payments")
+        .select("beneficiario, cedula_rnc, cuenta_banco, banco_destino, tipo_cuenta, monto, concepto")
+        .eq("batch_id", sel.id)
+        .order("fila", { ascending: true });
+      const pagos: PagoRecibo[] = (pays ?? []).map((p) => ({
+        beneficiario: p.beneficiario ?? "",
+        cedula: p.cedula_rnc ?? "",
+        banco: p.banco_destino ?? "",
+        cuenta: p.cuenta_banco ?? "",
+        tipoCuenta: p.tipo_cuenta ?? "",
+        monto: Number(p.monto ?? 0),
+        concepto: p.concepto ?? "",
+      }));
+      if (pagos.length === 0) throw new Error("Este proceso no tiene pagos.");
+
+      // Subir el comprobante (si se adjuntó uno nuevo)
       let compName = recibo?.comprobante_file_name ?? null;
-      let compPath = recibo?.comprobante_storage_path ?? null;
+      let compPath: string | null = null;
       if (comprobante) {
         const ext = comprobante.name.split(".").pop() || "pdf";
         compPath = `${user.id}/${sel.id}_comprobante.${ext}`;
@@ -88,60 +122,53 @@ export default function GeneradorRecibo() {
         compName = comprobante.name;
       }
 
-      // 2) Número de recibo (si aún no tiene)
-      let numero = recibo?.numero_recibo ?? null;
-      if (!numero) {
+      // Número base de recibo
+      let base = recibo?.numero_recibo ?? null;
+      if (!base) {
         const { count } = await supabase.from("receipts").select("id", { count: "exact", head: true });
-        const anio = new Date().getFullYear();
-        numero = `REC-${anio}-${String((count ?? 0) + 1).padStart(4, "0")}`;
+        base = `REC-${new Date().getFullYear()}-${String((count ?? 0) + 1).padStart(4, "0")}`;
       }
 
       const ahora = new Date();
-
-      // 3) Construir el HTML del recibo y subirlo al bucket "recibos"
-      const html = reciboHtml({
-        numero,
+      const meta: MetaRecibo = {
+        empresa: "UD GROUP DOMINICANA",
+        grupo: sel.grupo || "—",
+        tipoPago: sel.tipo_pago || "—",
         fecha: ahora.toLocaleDateString("es-DO"),
         hora: ahora.toLocaleTimeString("es-DO"),
-        grupo: sel.grupo || "—",
-        tipo: sel.tipo_pago || "—",
-        monto: money(Number(sel.monto_total)),
-        cantidad: sel.total_registros,
-        txt: sel.txt_file_name || "—",
-        comprobante: compName || "—",
         estadoPago,
+        comprobante: compName || "—",
         usuario,
-      });
-      const reciboPath = `${user.id}/${sel.id}_recibo.html`;
-      await supabase.storage.from("recibos").upload(reciboPath, new Blob([html], { type: "text/html" }), { upsert: true });
+        baseNumero: base,
+      };
 
-      // 4) Guardar/actualizar el recibo en la BD
+      // Construir el ZIP con un recibo por transacción
+      const { zip } = await construirZipRecibos(pagos, meta, comprobante);
+
+      // Descargar el ZIP
+      descargarZip(zip);
+
+      // Subir el ZIP al almacenamiento
+      const zipPath = `${user.id}/${sel.id}_recibos.zip`;
+      await supabase.storage.from("recibos").upload(zipPath, zip, { upsert: true });
+
+      // Guardar/actualizar el recibo en la BD
       const registro = {
         batch_id: sel.id,
         user_id: user.id,
-        numero_recibo: numero,
+        numero_recibo: base,
         comprobante_file_name: compName,
-        comprobante_storage_path: compPath,
-        recibo_file_name: `${numero}.html`,
-        recibo_storage_path: reciboPath,
+        comprobante_storage_path: compPath ?? undefined,
+        recibo_file_name: `Recibos_${slug(sel.grupo ?? "grupo")}.zip`,
+        recibo_storage_path: zipPath,
         estado_pago: estadoPago,
       };
-      if (recibo?.id) {
-        await supabase.from("receipts").update(registro).eq("id", recibo.id);
-      } else {
-        await supabase.from("receipts").insert(registro);
-      }
+      if (recibo?.id) await supabase.from("receipts").update(registro).eq("id", recibo.id);
+      else await supabase.from("receipts").insert(registro);
 
-      // 5) Marcar el proceso como completado
       await supabase.from("payment_batches").update({ estado: "completado" }).eq("id", sel.id);
 
-      // 6) Abrir el recibo para imprimir/guardar PDF
-      const w = window.open("", "_blank");
-      if (w) {
-        w.document.write(html);
-        w.document.close();
-      }
-
+      setOk(`Se generaron ${pagos.length} recibos y se descargó el ZIP.`);
       await seleccionar(sel);
       cargar();
     } catch (e) {
@@ -156,7 +183,7 @@ export default function GeneradorRecibo() {
       <div>
         <span className="mb-1 inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">Módulo 4</span>
         <h1 className="text-2xl font-bold text-slate-800">Recibo de Pago</h1>
-        <p className="text-slate-500">Adjunta el comprobante del banco y genera el recibo.</p>
+        <p className="text-slate-500">Adjunta el comprobante del banco y genera un recibo por cada transacción (en un ZIP).</p>
       </div>
 
       {!sel ? (
@@ -189,14 +216,14 @@ export default function GeneradorRecibo() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Dato titulo="Grupo" valor={sel.grupo || "—"} />
-              <Dato titulo="Pagos" valor={String(sel.total_registros)} />
+              <Dato titulo="Transacciones" valor={String(sel.total_registros)} />
               <Dato titulo="Monto total" valor={money(Number(sel.monto_total))} />
               <Dato titulo="Tipo" valor={sel.tipo_pago || "—"} />
             </div>
 
             {recibo?.numero_recibo && (
               <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
-                Este proceso ya tiene el recibo <b>{recibo.numero_recibo}</b>. Puedes regenerarlo o actualizar el comprobante.
+                Este proceso ya tiene recibos (base <b>{recibo.numero_recibo}</b>). Puedes regenerarlos.
               </div>
             )}
 
@@ -218,11 +245,14 @@ export default function GeneradorRecibo() {
               </div>
             </div>
 
+            <p className="mt-3 text-xs text-slate-500">Se generará <b>un recibo PDF por cada transacción</b> ({sel.total_registros}) dentro de un archivo ZIP.</p>
+
             {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+            {ok && <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{ok}</div>}
 
             <div className="mt-5 flex justify-end">
               <button onClick={generar} disabled={trabajando} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">
-                {trabajando ? "Generando…" : recibo?.numero_recibo ? "Actualizar y ver recibo" : "Generar recibo"}
+                {trabajando ? "Generando recibos…" : `Generar ${sel.total_registros} recibos (ZIP)`}
               </button>
             </div>
           </div>
@@ -239,43 +269,4 @@ function Dato({ titulo, valor }: { titulo: string; valor: string }) {
       <p className="font-semibold capitalize text-slate-800">{valor}</p>
     </div>
   );
-}
-
-function reciboHtml(d: {
-  numero: string; fecha: string; hora: string; grupo: string; tipo: string;
-  monto: string; cantidad: number; txt: string; comprobante: string;
-  estadoPago: string; usuario: string;
-}) {
-  const fila = (k: string, v: string) =>
-    `<tr><td style="padding:8px 12px;color:#64748b;border-bottom:1px solid #eef2f7">${k}</td><td style="padding:8px 12px;color:#0f172a;font-weight:600;border-bottom:1px solid #eef2f7;text-align:right">${v}</td></tr>`;
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${d.numero}</title>
-<style>@media print{.noprint{display:none}} body{font-family:Arial,Helvetica,sans-serif;background:#f1f5f9;margin:0;padding:24px}</style></head>
-<body>
-<div style="max-width:640px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(2,6,23,.08)">
-  <div style="background:#2563eb;color:#fff;padding:24px 28px">
-    <div style="font-size:13px;opacity:.85">UD GROUP DOMINICANA</div>
-    <div style="font-size:22px;font-weight:700">Recibo de Pago</div>
-  </div>
-  <div style="padding:20px 28px">
-    <div style="display:flex;justify-content:space-between;margin-bottom:16px">
-      <div><div style="color:#64748b;font-size:12px">No. de Recibo</div><div style="font-weight:700;color:#0f172a">${d.numero}</div></div>
-      <div style="text-align:right"><div style="color:#64748b;font-size:12px">Fecha y hora</div><div style="font-weight:600;color:#0f172a">${d.fecha} ${d.hora}</div></div>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:14px">
-      ${fila("Grupo", d.grupo)}
-      ${fila("Tipo de pago", d.tipo)}
-      ${fila("Cantidad de pagos", String(d.cantidad))}
-      ${fila("Monto total pagado", d.monto)}
-      ${fila("Archivo TXT", d.txt)}
-      ${fila("Comprobante del banco", d.comprobante)}
-      ${fila("Estado del pago", d.estadoPago)}
-      ${fila("Procesado por", d.usuario)}
-    </table>
-    <p style="color:#94a3b8;font-size:11px;text-align:center;margin-top:24px">Documento generado automáticamente por el sistema de Pagos Masivos.</p>
-  </div>
-</div>
-<div class="noprint" style="max-width:640px;margin:16px auto;text-align:center">
-  <button onclick="window.print()" style="background:#2563eb;color:#fff;border:0;border-radius:10px;padding:10px 20px;font-size:14px;cursor:pointer">Imprimir / Guardar PDF</button>
-</div>
-</body></html>`;
 }
