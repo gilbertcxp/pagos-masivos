@@ -152,6 +152,9 @@ export default function GeneradorTxt() {
 
     if (res.incluidos === 0) return;
 
+    // Descargar automáticamente el archivo generado
+    descargar(res.contenido);
+
     // Guardar en historial + storage (no bloqueante)
     const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const slug = normNombre(sel.grupo ?? "grupo").replace(/[^A-Z0-9]+/g, "_");
@@ -179,17 +182,22 @@ export default function GeneradorTxt() {
     }
   }
 
-  function descargar() {
-    if (!resultado || !sel) return;
+  function nombreTxt() {
     const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const slug = normNombre(sel.grupo ?? "grupo").replace(/[^A-Z0-9]+/g, "_");
-    const blob = new Blob([resultado.contenido], { type: "text/plain;charset=utf-8" });
+    const slug = normNombre(sel?.grupo || formNombre || "grupo").replace(/[^A-Z0-9]+/g, "_");
+    return `TERCEROS_${slug}_${fecha}.txt`;
+  }
+
+  function descargar(contenido: string) {
+    const blob = new Blob([contenido], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `TERCEROS_${slug}_${fecha}.txt`;
+    a.download = nombreTxt();
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // ---------- Vistas ----------
@@ -294,7 +302,7 @@ export default function GeneradorTxt() {
                   <p className="text-sm text-slate-500">Listos para el banco (solo Banreservas).</p>
                 </div>
                 {resultado.incluidos > 0 && (
-                  <button onClick={descargar} className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700">⬇ Descargar TXT</button>
+                  <button onClick={() => descargar(resultado.contenido)} className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700">⬇ Descargar TXT de nuevo</button>
                 )}
               </div>
 
