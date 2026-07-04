@@ -133,7 +133,7 @@ function reciboPdf(numero: string, pago: PagoRecibo, meta: MetaRecibo): ArrayBuf
         w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
         h = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
       }
-      const maxW = 75, maxH = 32;
+      const maxW = 120, maxH = 62;
       let drawW = maxW, drawH = maxH;
       if (w > 0 && h > 0) {
         const escala = Math.min(maxW / w, maxH / h);
@@ -160,17 +160,17 @@ function reciboPdf(numero: string, pago: PagoRecibo, meta: MetaRecibo): ArrayBuf
     doc.text("primera", M + 13, 24);
   }
 
-  // Títulos a la derecha
+  // Títulos a la derecha (debajo del logo grande)
   doc.setTextColor(...NEGRO);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.text("COMPROBANTE DE PAGO", W - M, 20, { align: "right" });
+  doc.text("COMPROBANTE DE PAGO", W - M, 88, { align: "right" });
   doc.setTextColor(...ROJO);
   doc.setFontSize(12);
-  doc.text("RECIBO DE PAGO", W - M, 28, { align: "right" });
+  doc.text("RECIBO DE PAGO", W - M, 96, { align: "right" });
 
   // Recuadro No.
-  const boxW = 78, boxH = 12, boxX = W - M - boxW, boxY = 38;
+  const boxW = 78, boxH = 12, boxX = W - M - boxW, boxY = 104;
   doc.setDrawColor(...ROJO);
   doc.setLineWidth(0.5);
   doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, "S");
@@ -198,7 +198,7 @@ function reciboPdf(numero: string, pago: PagoRecibo, meta: MetaRecibo): ArrayBuf
     { icono: "usuario", label: "Procesado por", valor: meta.usuario || "—" },
   ];
 
-  let y = 64;
+  let y = 136;
   const filaH = 13;
   for (const f of filas) {
     icono(doc, f.icono, M + 3, y - 1);
