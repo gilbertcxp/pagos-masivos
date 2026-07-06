@@ -183,8 +183,8 @@ export default async function DetalleSolicitud({
         </div>
       </div>
 
-      {/* Módulo de recibos — visible para ambos roles cuando el batch no está cancelado/borrador */}
-      {!["cancelada", "borrador"].includes(b.estado) && (
+      {/* Módulo de recibos — visible para ambos roles excepto cuando está cancelada */}
+      {b.estado !== "cancelada" && (
         <GeneradorReciboInline
           batchId={b.id}
           grupo={b.grupo}
