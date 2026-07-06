@@ -9,6 +9,7 @@ import {
   type Rol,
 } from "@/lib/auth/roles";
 import BotonesFlujo from "./BotonesFlujo";
+import GeneradorReciboInline from "./GeneradorReciboInline";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -62,7 +63,7 @@ export default async function DetalleSolicitud({
 
   const { data: pagos } = await supabase
     .from("payments")
-    .select("fila, beneficiario, cedula_rnc, banco_destino, cuenta_banco, tipo_cuenta, monto, concepto, tiene_error, errores")
+    .select("fila, beneficiario, cedula_rnc, banco_destino, cuenta_banco, tipo_cuenta, monto, concepto, tiene_error, errores, estado_pago")
     .eq("batch_id", batchId)
     .order("fila", { ascending: true });
 
@@ -151,6 +152,9 @@ export default async function DetalleSolicitud({
                 <th className="px-3 py-2 text-left font-medium">Cuenta</th>
                 <th className="px-3 py-2 text-left font-medium">Tipo</th>
                 <th className="px-3 py-2 text-right font-medium">Monto</th>
+                {contexto === "contabilidad" && (
+                  <th className="px-3 py-2 text-center font-medium">Estado</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -163,12 +167,32 @@ export default async function DetalleSolicitud({
                   <td className="px-3 py-2 text-slate-600">{p.cuenta_banco || "—"}</td>
                   <td className="px-3 py-2 text-xs text-slate-500">{p.tipo_cuenta || "—"}</td>
                   <td className="px-3 py-2 text-right text-slate-800">{money(Number(p.monto))}</td>
+                  {contexto === "contabilidad" && (
+                    <td className="px-3 py-2 text-center">
+                      {(p as { estado_pago?: string }).estado_pago === "pagado" ? (
+                        <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Pagado</span>
+                      ) : (
+                        <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Pendiente</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Módulo de recibos — visible en contabilidad desde el inicio (en revisión);
+          la sección de generación se habilita sólo cuando existe TXT */}
+      {contexto === "contabilidad" && !["cancelada", "borrador"].includes(b.estado) && (
+        <GeneradorReciboInline
+          batchId={b.id}
+          grupo={b.grupo}
+          tipoPago={b.tipo_pago}
+          tieneTxt={!!b.txt_file_name}
+        />
+      )}
 
       {/* Auditoría */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
