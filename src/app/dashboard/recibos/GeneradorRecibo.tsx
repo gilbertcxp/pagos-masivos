@@ -64,21 +64,16 @@ export default function GeneradorRecibo() {
   const [cargandoPagos, setCargandoPagos] = useState(false);
   const [batchReceipt, setBatchReceipt] = useState<BatchReceipt | null>(null);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
-  const [comprobante, setComprobante] = useState<File | null>(null);
-  const [fechaComprobante, setFechaComprobante] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
-  const tieneComprobante = !!comprobante || !!batchReceipt?.comprobante_file_name;
   const pagosPendientes = pagos.filter((p) => p.estado_pago !== "pagado");
   const pagosSeleccionados = pagosPendientes.filter((p) => seleccionados.has(p.id));
   const montoSeleccionado = pagosSeleccionados.reduce((s, p) => s + Number(p.monto), 0);
   const todosSeleccionados =
     pagosPendientes.length > 0 && pagosSeleccionados.length === pagosPendientes.length;
-  const puedeGenerar = tieneComprobante && pagosSeleccionados.length > 0 && !trabajando;
+  const puedeGenerar = pagosSeleccionados.length > 0 && !trabajando;
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -100,7 +95,6 @@ export default function GeneradorRecibo() {
     setSel(b);
     setError("");
     setOk("");
-    setComprobante(null);
     setCargandoPagos(true);
 
     const [{ data: pays }, { data: receipt }] = await Promise.all([
@@ -157,10 +151,6 @@ export default function GeneradorRecibo() {
   async function generar() {
     if (!sel) return;
 
-    if (!tieneComprobante) {
-      setError("Debes adjuntar el comprobante de Banreservas antes de generar los recibos.");
-      return;
-    }
     if (pagosSeleccionados.length === 0) {
       setError("Selecciona al menos un pago antes de continuar.");
       return;
@@ -183,20 +173,7 @@ export default function GeneradorRecibo() {
         .single();
       const usuario = perfil?.nombre || perfil?.correo || "Usuario";
 
-      // Subir comprobante si se adjuntó uno nuevo
-      let compName = batchReceipt?.comprobante_file_name ?? null;
-      let compPath: string | null = null;
-      if (comprobante) {
-        const ext = comprobante.name.split(".").pop() || "pdf";
-        compPath = `${user.id}/${sel.id}_comprobante.${ext}`;
-        const { error: eUp } = await supabase.storage
-          .from("comprobantes")
-          .upload(compPath, comprobante, { upsert: true });
-        if (eUp) throw new Error("No se pudo subir el comprobante: " + eUp.message);
-        compName = comprobante.name;
-      }
-
-      const base = fechaComprobante || new Date().toISOString().slice(0, 10);
+      const base = new Date().toISOString().slice(0, 10);
       const [fy, fm, fd] = base.split("-");
       const logoDataUrl = await cargarLogo("/assets/logo-la-primera.png");
 
@@ -221,7 +198,7 @@ export default function GeneradorRecibo() {
         concepto: p.concepto ?? "",
       }));
 
-      const { zip } = await construirZipRecibos(pagosParaRecibo, meta, comprobante);
+      const { zip } = await construirZipRecibos(pagosParaRecibo, meta, null);
       descargarZip(zip);
 
       // Guardar ZIP en Storage
@@ -231,22 +208,17 @@ export default function GeneradorRecibo() {
       // Upsert registro de recibo en BD (nivel de lote)
       const receiptBase = {
         numero_recibo: base,
-        comprobante_file_name: compName,
         recibo_file_name: `Recibos_${slug(sel.grupo ?? "grupo")}_${base}.zip`,
         recibo_storage_path: zipPath,
         estado_pago: "confirmado",
       };
       if (batchReceipt?.id) {
-        await supabase
-          .from("receipts")
-          .update({ ...receiptBase, ...(compPath ? { comprobante_storage_path: compPath } : {}) })
-          .eq("id", batchReceipt.id);
+        await supabase.from("receipts").update(receiptBase).eq("id", batchReceipt.id);
       } else {
         await supabase.from("receipts").insert({
           ...receiptBase,
           batch_id: sel.id,
           user_id: user.id,
-          ...(compPath ? { comprobante_storage_path: compPath } : {}),
         });
       }
 
@@ -286,8 +258,7 @@ export default function GeneradorRecibo() {
         </span>
         <h1 className="text-2xl font-bold text-slate-800">Recibo de Pago</h1>
         <p className="text-slate-500">
-          Selecciona los pagos realizados, adjunta el comprobante de Banreservas y genera los
-          recibos de pago.
+          Selecciona los pagos realizados y genera los recibos de pago.
         </p>
       </div>
 
@@ -349,146 +320,10 @@ export default function GeneradorRecibo() {
               <Dato titulo="Tipo" valor={sel.tipo_pago || "—"} />
             </div>
 
-            {/* ── SECCIÓN 1: COMPROBANTE ─────────────────────────────────────── */}
+            {/* ── TABLA DE PAGOS ────────────────────────────────────────────── */}
             <div>
               <p className="mb-3 text-sm font-semibold text-slate-700">
-                1. Comprobante del banco
-              </p>
-
-              {!tieneComprobante && (
-                <div className="mb-3 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                  <svg
-                    className="mt-0.5 h-5 w-5 shrink-0 text-amber-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 9v3m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                    />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">Requerido</p>
-                    <p className="text-xs text-amber-700">
-                      Adjunta el PDF de confirmación de Banreservas para poder generar los recibos.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {/* Upload comprobante */}
-                <div>
-                  <label className="mb-1 flex items-center gap-1 text-sm font-medium text-slate-700">
-                    Comprobante Banreservas (PDF)
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <div
-                    className={`relative rounded-lg border-2 border-dashed px-4 py-3 transition-colors ${
-                      comprobante
-                        ? "border-emerald-400 bg-emerald-50"
-                        : batchReceipt?.comprobante_file_name
-                        ? "border-slate-300 bg-slate-50"
-                        : "border-amber-300 bg-amber-50"
-                    }`}
-                  >
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={(e) => {
-                        setComprobante(e.target.files?.[0] ?? null);
-                        setError("");
-                      }}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    />
-                    {comprobante ? (
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className="h-4 w-4 shrink-0 text-emerald-600"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <span className="truncate text-sm font-medium text-emerald-700">
-                          {comprobante.name}
-                        </span>
-                      </div>
-                    ) : batchReceipt?.comprobante_file_name ? (
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className="h-4 w-4 shrink-0 text-slate-500"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                          />
-                        </svg>
-                        <span className="truncate text-sm text-slate-600">
-                          {batchReceipt.comprobante_file_name}
-                        </span>
-                        <span className="ml-auto shrink-0 text-xs text-slate-400">
-                          clic para reemplazar
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-amber-700">
-                        <svg
-                          className="h-4 w-4 shrink-0"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                          />
-                        </svg>
-                        <span className="text-sm font-medium">Adjuntar PDF de Banreservas</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Fecha del comprobante */}
-                <div>
-                  <label className="mb-1 text-sm font-medium text-slate-700">
-                    Fecha del comprobante
-                    <span className="ml-1 text-xs font-normal text-slate-400">(del banco)</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={fechaComprobante}
-                    onChange={(e) => setFechaComprobante(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <p className="mt-1 text-xs text-slate-400">
-                    Define el No. de recibo (ej: {fechaComprobante}-001)
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* ── SECCIÓN 2: TABLA DE PAGOS ─────────────────────────────────── */}
-            <div>
-              <p className="mb-3 text-sm font-semibold text-slate-700">
-                2. Selecciona los pagos realizados
+                Selecciona los pagos realizados
               </p>
 
               {cargandoPagos ? (
@@ -651,22 +486,13 @@ export default function GeneradorRecibo() {
             {/* Botón generar */}
             <div className="flex items-center justify-between border-t border-slate-100 pt-4">
               <p className="text-xs text-slate-400">
-                {!tieneComprobante
-                  ? "Adjunta el comprobante para habilitar la generación."
-                  : pagosSeleccionados.length === 0
+                {pagosSeleccionados.length === 0
                   ? "Selecciona al menos un pago."
                   : `Listo: ${pagosSeleccionados.length} recibos · ${money(montoSeleccionado)}`}
               </p>
               <button
                 onClick={generar}
                 disabled={!puedeGenerar}
-                title={
-                  !tieneComprobante
-                    ? "Adjunta el comprobante primero"
-                    : pagosSeleccionados.length === 0
-                    ? "Selecciona al menos un pago"
-                    : undefined
-                }
                 className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {trabajando
