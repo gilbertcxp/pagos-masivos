@@ -183,9 +183,8 @@ export default async function DetalleSolicitud({
         </div>
       </div>
 
-      {/* Módulo de recibos — visible en contabilidad desde el inicio (en revisión);
-          la sección de generación se habilita sólo cuando existe TXT */}
-      {contexto === "contabilidad" && !["cancelada", "borrador"].includes(b.estado) && (
+      {/* Módulo de recibos — visible para ambos roles cuando el batch no está cancelado/borrador */}
+      {!["cancelada", "borrador"].includes(b.estado) && (
         <GeneradorReciboInline
           batchId={b.id}
           grupo={b.grupo}
