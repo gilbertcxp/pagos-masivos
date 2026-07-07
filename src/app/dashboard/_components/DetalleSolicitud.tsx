@@ -183,15 +183,13 @@ export default async function DetalleSolicitud({
         </div>
       </div>
 
-      {/* Módulo de recibos — visible para ambos roles excepto cuando está cancelada */}
-      {b.estado !== "cancelada" && (
-        <GeneradorReciboInline
-          batchId={b.id}
-          grupo={b.grupo}
-          tipoPago={b.tipo_pago}
-          tieneTxt={!!b.txt_file_name}
-        />
-      )}
+      {/* Módulo de recibos — siempre visible */}
+      <GeneradorReciboInline
+        batchId={b.id}
+        grupo={b.grupo}
+        tipoPago={b.tipo_pago}
+        tieneTxt={!!b.txt_file_name}
+      />
 
       {/* Auditoría */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5">
