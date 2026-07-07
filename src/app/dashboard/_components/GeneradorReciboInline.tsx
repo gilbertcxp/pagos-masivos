@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   construirZipRecibos,
@@ -65,7 +64,6 @@ export default function GeneradorReciboInline({
   tipoPago: string | null;
   tieneTxt: boolean;
 }) {
-  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const [pagos, setPagos] = useState<Payment[]>([]);
@@ -186,48 +184,30 @@ export default function GeneradorReciboInline({
       }));
 
       const { zip } = await construirZipRecibos(pagosParaRecibo, meta, null);
+
+      // Descarga inmediata — antes de cualquier operación en BD
       descargarZip(zip);
 
-      // Guardar ZIP en Storage
-      const zipPath = `${user.id}/${batchId}_recibos_${base}.zip`;
-      await supabase.storage.from("recibos").upload(zipPath, zip, { upsert: true });
+      setOk(`${pagosSeleccionados.length} recibos descargados correctamente.`);
 
-      // Upsert receipt record
-      const receiptBase = {
-        numero_recibo: base,
-        recibo_file_name: `Recibos_${slug(grupo ?? "grupo")}_${base}.zip`,
-        recibo_storage_path: zipPath,
-        estado_pago: "confirmado",
-      };
-      if (batchReceipt?.id) {
-        await supabase.from("receipts").update(receiptBase).eq("id", batchReceipt.id);
-      } else {
-        await supabase.from("receipts").insert({
-          ...receiptBase,
-          batch_id: batchId,
-          user_id: user.id,
-        });
-      }
-
-      // Marcar pagos seleccionados como pagados
-      const ahora = new Date().toISOString();
-      const idsSeleccionados = pagosSeleccionados.map((p) => p.id);
-      await supabase
-        .from("payments")
-        .update({ estado_pago: "pagado", pagado_en: ahora, pagado_por: user.id })
-        .in("id", idsSeleccionados);
-
-      // Actualizar estado del lote
-      const yaPagados = pagos.filter((p) => p.estado_pago === "pagado").length;
-      const totalAhora = yaPagados + idsSeleccionados.length;
-      const nuevoEstado = totalAhora >= pagos.length ? "completado" : "pagada";
-      await supabase.from("payment_batches").update({ estado: nuevoEstado }).eq("id", batchId);
-
-      setOk(`${pagosSeleccionados.length} recibos generados y descargados correctamente.`);
-      await cargarDatos();
-      router.refresh(); // Actualiza el Server Component (tabla de beneficiarios y estado)
+      // Guardar copia en Storage (no bloquea ni falla la descarga)
+      try {
+        const zipPath = `${user.id}/${batchId}_recibos_${base}.zip`;
+        await supabase.storage.from("recibos").upload(zipPath, zip, { upsert: true });
+        const receiptBase = {
+          numero_recibo: base,
+          recibo_file_name: `Recibos_${slug(grupo ?? "grupo")}_${base}.zip`,
+          recibo_storage_path: zipPath,
+          estado_pago: "confirmado",
+        };
+        if (batchReceipt?.id) {
+          await supabase.from("receipts").update(receiptBase).eq("id", batchReceipt.id);
+        } else {
+          await supabase.from("receipts").insert({ ...receiptBase, batch_id: batchId, user_id: user.id });
+        }
+      } catch { /* error de almacenamiento no bloquea la descarga */ }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ocurrió un error.");
+      setError(e instanceof Error ? e.message : "Ocurrió un error al generar los recibos.");
     } finally {
       setTrabajando(false);
     }
