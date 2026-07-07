@@ -76,11 +76,9 @@ export default function GeneradorReciboInline({
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
-  const pagosPendientes = pagos.filter((p) => p.estado_pago !== "pagado");
-  const pagosSeleccionados = pagosPendientes.filter((p) => seleccionados.has(p.id));
+  const pagosSeleccionados = pagos.filter((p) => seleccionados.has(p.id));
   const montoSeleccionado = pagosSeleccionados.reduce((s, p) => s + Number(p.monto), 0);
-  const todosSeleccionados =
-    pagosPendientes.length > 0 && pagosSeleccionados.length === pagosPendientes.length;
+  const todosSeleccionados = pagos.length > 0 && pagosSeleccionados.length === pagos.length;
   const puedeGenerar = pagosSeleccionados.length > 0 && !trabajando;
 
   const cargarDatos = useCallback(async () => {
@@ -101,7 +99,7 @@ export default function GeneradorReciboInline({
     ]);
     const payList = (pays ?? []) as Payment[];
     setPagos(payList);
-    setSeleccionados(new Set(payList.filter((p) => p.estado_pago !== "pagado").map((p) => p.id)));
+    setSeleccionados(new Set(payList.map((p) => p.id)));
     setBatchReceipt((receipt as BatchReceipt) ?? null);
     setCargando(false);
   }, [supabase, batchId]);
@@ -123,7 +121,7 @@ export default function GeneradorReciboInline({
     if (todosSeleccionados) {
       setSeleccionados(new Set());
     } else {
-      setSeleccionados(new Set(pagosPendientes.map((p) => p.id)));
+      setSeleccionados(new Set(pagos.map((p) => p.id)));
     }
   }
 
@@ -243,8 +241,7 @@ export default function GeneradorReciboInline({
     );
   }
 
-  // Si todos los pagos ya están pagados, mostrar resumen de completado
-  const todosPagados = pagos.length > 0 && pagosPendientes.length === 0;
+  const todosPagados = pagos.length > 0 && pagos.every((p) => p.estado_pago === "pagado");
 
   return (
     <div className="rounded-2xl border border-blue-100 bg-white p-5 space-y-5">
@@ -253,7 +250,7 @@ export default function GeneradorReciboInline({
         <div>
           <h2 className="text-base font-semibold text-slate-800">Generar Recibos de Pago</h2>
           <p className="text-xs text-slate-500">
-            Selecciona los pagos realizados en el banco y genera los comprobantes.
+            Selecciona los pagos y genera los comprobantes. Puedes descargarlos las veces que necesites.
           </p>
         </div>
         {todosPagados && (
@@ -263,12 +260,7 @@ export default function GeneradorReciboInline({
         )}
       </div>
 
-      {todosPagados ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          Todos los pagos de esta solicitud han sido procesados y los recibos generados.
-        </div>
-      ) : (
-        <>
+      <>
           {/* Aviso cuando aún no hay TXT */}
           {!tieneTxt && (
             <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-500">
@@ -293,7 +285,7 @@ export default function GeneradorReciboInline({
                         type="checkbox"
                         checked={todosSeleccionados}
                         onChange={toggleTodos}
-                        disabled={pagosPendientes.length === 0}
+                        disabled={pagos.length === 0}
                         title={todosSeleccionados ? "Deseleccionar todos" : "Seleccionar todos"}
                         className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600 disabled:opacity-40"
                       />
@@ -313,29 +305,19 @@ export default function GeneradorReciboInline({
                     return (
                       <tr
                         key={p.id}
-                        onClick={() => !pagado && toggleSeleccion(p.id)}
-                        className={`transition-colors ${
-                          pagado
-                            ? "bg-slate-50 opacity-60"
-                            : checked
-                            ? "bg-blue-50"
-                            : "cursor-pointer hover:bg-slate-50"
+                        onClick={() => toggleSeleccion(p.id)}
+                        className={`cursor-pointer transition-colors ${
+                          checked ? "bg-blue-50" : "hover:bg-slate-50"
                         }`}
                       >
                         <td className="px-3 py-2.5">
-                          {pagado ? (
-                            <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleSeleccion(p.id)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600"
-                            />
-                          )}
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleSeleccion(p.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600"
+                          />
                         </td>
                         <td className="px-3 py-2.5 text-slate-400">{p.fila ?? "—"}</td>
                         <td className="px-3 py-2.5 font-medium text-slate-800">{p.beneficiario || "—"}</td>
@@ -359,9 +341,9 @@ export default function GeneradorReciboInline({
             {/* Resumen */}
             <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
               <span>
-                {pagosSeleccionados.length} de {pagosPendientes.length} pendientes seleccionados
+                {pagosSeleccionados.length} de {pagos.length} seleccionados
                 {pagos.some((p) => p.estado_pago === "pagado") && (
-                  <> · {pagos.filter((p) => p.estado_pago === "pagado").length} ya pagados</>
+                  <> · {pagos.filter((p) => p.estado_pago === "pagado").length} pagados</>
                 )}
               </span>
               {pagosSeleccionados.length > 0 && (
@@ -370,43 +352,37 @@ export default function GeneradorReciboInline({
             </div>
           </div>
 
-          {/* Botón generar: solo cuando el TXT ya fue generado */}
-          {tieneTxt && (
-            <>
-              {error && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  {error}
-                </div>
-              )}
-              {ok && (
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {ok}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-                <p className="text-xs text-slate-400">
-                  {pagosSeleccionados.length === 0
-                    ? "Selecciona al menos un pago."
-                    : `Listo: ${pagosSeleccionados.length} recibos · ${money(montoSeleccionado)}`}
-                </p>
-                <button
-                  onClick={generar}
-                  disabled={!puedeGenerar}
-                  className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {trabajando
-                    ? "Generando…"
-                    : `Generar ${pagosSeleccionados.length || ""} Recibos de Pago (ZIP)`}
-                </button>
-              </div>
-            </>
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              {error}
+            </div>
           )}
+          {ok && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {ok}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+            <p className="text-xs text-slate-400">
+              {pagosSeleccionados.length === 0
+                ? "Selecciona al menos un pago."
+                : `Listo: ${pagosSeleccionados.length} recibos · ${money(montoSeleccionado)}`}
+            </p>
+            <button
+              onClick={generar}
+              disabled={!puedeGenerar}
+              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {trabajando
+                ? "Generando…"
+                : `Generar Recibos de Pago (ZIP)`}
+            </button>
+          </div>
         </>
-      )}
     </div>
   );
 }
