@@ -38,6 +38,10 @@ export function esContabilidad(rol: Rol | null | undefined): boolean {
   return rol === "contabilidad" || esAdmin(rol);
 }
 
+export function esViewer(rol: Rol | null | undefined): boolean {
+  return rol === "usuario";
+}
+
 /** ¿Puede el usuario editar el batch/solicitud? (Módulo 1) */
 export function puedeEditar(rol: Rol | null | undefined, estado: string, dueño: boolean): boolean {
   if (esAdmin(rol)) return true;

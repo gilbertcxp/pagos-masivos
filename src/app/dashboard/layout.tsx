@@ -2,15 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/app/login/actions";
-import { esAdmin, esContabilidad, esContratos, type Rol } from "@/lib/auth/roles";
+import { esAdmin, esContabilidad, esContratos, esViewer, type Rol } from "@/lib/auth/roles";
 
 type NavItem = { href: string; label: string; icon: string; ver: (r: Rol) => boolean };
 
 const NAV: NavItem[] = [
   { href: "/dashboard",                label: "Dashboard",           icon: "grid",     ver: () => true },
-  { href: "/dashboard/solicitudes",    label: "Solicitudes de Pago", icon: "upload",   ver: (r) => esContratos(r) },
-  { href: "/dashboard/contabilidad",   label: "Contabilidad",        icon: "check",    ver: (r) => esContabilidad(r) },
-  { href: "/dashboard/recibos",        label: "Recibos",             icon: "receipt",  ver: (r) => esContratos(r) || esContabilidad(r) || esAdmin(r) },
+  { href: "/dashboard/solicitudes",    label: "Solicitudes de Pago", icon: "upload",   ver: (r) => esContratos(r) || esViewer(r) },
+  { href: "/dashboard/contabilidad",   label: "Contabilidad",        icon: "check",    ver: (r) => esContabilidad(r) || esViewer(r) },
+  { href: "/dashboard/recibos",        label: "Recibos",             icon: "receipt",  ver: (r) => esContratos(r) || esContabilidad(r) || esAdmin(r) || esViewer(r) },
   { href: "/dashboard/historial",      label: "Historial",           icon: "clock",    ver: () => true },
   { href: "/dashboard/consorcios",     label: "Cuentas Consorcios",  icon: "bank",     ver: (r) => esAdmin(r) },
   { href: "/dashboard/usuarios",       label: "Usuarios",            icon: "users",    ver: (r) => esAdmin(r) },
