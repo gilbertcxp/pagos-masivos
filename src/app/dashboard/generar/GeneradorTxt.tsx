@@ -58,9 +58,8 @@ export default function GeneradorTxt() {
   const [generando, setGenerando] = useState<"terceros" | "ach" | null>(null);
   const [error, setError] = useState("");
 
-  const [formNombre, setFormNombre] = useState("");
-  const [formTipo, setFormTipo] = useState<"CA" | "CC">("CC");
-  const [formCuenta, setFormCuenta] = useState("");
+  const [todosGrupos, setTodosGrupos] = useState<Grupo[]>([]);
+  const [grupoSelId, setGrupoSelId] = useState<string>("");
 
   const cargarSolicitudes = useCallback(async () => {
     setCargando(true);
@@ -122,41 +121,32 @@ export default function GeneradorTxt() {
     }));
     setPagos(filas);
 
-    setFormNombre(b.grupo ?? "");
-    if (b.grupo) {
-      const { data: g } = await supabase
-        .from("grupos")
-        .select("*")
-        .eq("nombre_norm", normNombre(b.grupo))
-        .maybeSingle();
-      if (g) {
-        setGrupo(g as Grupo);
-        setFormTipo((g.tipo_cuenta_origen as "CA" | "CC") ?? "CC");
-        setFormCuenta(g.numero_cuenta_origen ?? "");
-      }
+    // Cargar todos los consorcios para el dropdown
+    const { data: gs } = await supabase
+      .from("grupos")
+      .select("id, nombre, tipo_cuenta_origen, moneda, numero_cuenta_origen")
+      .eq("activo", true)
+      .order("nombre", { ascending: true });
+    const lista = (gs ?? []) as Grupo[];
+    setTodosGrupos(lista);
+
+    // Auto-seleccionar si el batch.grupo coincide con un consorcio registrado
+    const match = lista.find((g) => g.nombre === b.grupo || normNombre(g.nombre) === normNombre(b.grupo ?? ""));
+    if (match) {
+      setGrupo(match);
+      setGrupoSelId(match.id);
+    } else {
+      setGrupo(null);
+      setGrupoSelId("");
     }
     setBuscandoGrupo(false);
   }
 
-  async function guardarGrupo() {
+  function seleccionarConsorcio(id: string) {
+    setGrupoSelId(id);
+    const g = todosGrupos.find((x) => x.id === id) ?? null;
+    setGrupo(g);
     setError("");
-    if (!formNombre.trim()) return setError("Escribe el nombre del grupo.");
-    if (!/^[0-9]{1,10}$/.test(formCuenta.trim()))
-      return setError("La cuenta de origen debe ser numérica (máx. 10 dígitos).");
-    const registro = {
-      nombre: formNombre.trim(),
-      nombre_norm: normNombre(formNombre),
-      tipo_cuenta_origen: formTipo,
-      moneda: "DOP",
-      numero_cuenta_origen: formCuenta.trim(),
-    };
-    const { data, error: e } = await supabase
-      .from("grupos")
-      .upsert(registro, { onConflict: "nombre_norm" })
-      .select("*")
-      .single();
-    if (e) return setError("No se pudo guardar la cuenta: " + e.message);
-    setGrupo(data as Grupo);
   }
 
   function descargar(contenido: string, nombre: string) {
@@ -173,7 +163,7 @@ export default function GeneradorTxt() {
 
   function nombreArchivo(tipo: "terceros" | "ach") {
     const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const slug = normNombre(sel?.grupo ?? formNombre ?? "grupo").replace(/[^A-Z0-9]+/g, "_");
+    const slug = normNombre(sel?.grupo ?? grupo?.nombre ?? "grupo").replace(/[^A-Z0-9]+/g, "_");
     return tipo === "terceros"
       ? `TERCEROS_${slug}_${fecha}.txt`
       : `ACH_${slug}_${fecha}.txt`;
@@ -309,66 +299,81 @@ export default function GeneradorTxt() {
             </div>
           </div>
 
-          {/* Cuenta de origen */}
+          {/* Cuenta de origen — dropdown de consorcios */}
           {buscandoGrupo ? (
-            <p className="text-slate-400">Buscando cuenta del grupo…</p>
-          ) : !grupo ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-              <p className="mb-1 font-semibold text-slate-800">Configura la cuenta de origen de este grupo</p>
-              <p className="mb-4 text-sm text-slate-600">Cuenta Banreservas de donde saldrá el dinero (origen para ambos tipos).</p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Nombre del grupo</label>
-                  <input value={formNombre} onChange={(e) => setFormNombre(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Tipo de cuenta</label>
-                  <select value={formTipo} onChange={(e) => setFormTipo(e.target.value as "CA" | "CC")} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                    <option value="CC">Corriente (CC)</option>
-                    <option value="CA">Ahorros (CA)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Número de cuenta</label>
-                  <input value={formCuenta} onChange={(e) => setFormCuenta(e.target.value)} inputMode="numeric" placeholder="9600882715" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-                </div>
-              </div>
-              <button onClick={guardarGrupo} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Guardar cuenta del grupo</button>
-            </div>
+            <p className="text-slate-400">Cargando consorcios…</p>
           ) : (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm text-slate-600">Cuenta de origen:</p>
-                  <p className="font-semibold text-slate-800">{grupo.tipo_cuenta_origen} · {grupo.moneda} · {grupo.numero_cuenta_origen}</p>
-                </div>
-                <button onClick={() => setGrupo(null)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">Cambiar</button>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+              <div>
+                <p className="mb-1 font-semibold text-slate-800">Consorcio de origen</p>
+                <p className="text-sm text-slate-500">Selecciona el consorcio desde donde saldrá el dinero.</p>
               </div>
 
-              {/* Botones de generación */}
-              <div className="flex flex-wrap gap-3">
-                {cntTerceros > 0 && (
-                  <button
-                    onClick={generarTerceros}
-                    disabled={generando !== null}
-                    className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60"
+              {todosGrupos.length === 0 ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  No hay consorcios registrados.{" "}
+                  <a href="/dashboard/consorcios" className="font-medium underline">
+                    Ir a Cuentas Consorcios
+                  </a>{" "}
+                  para agregar uno.
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={grupoSelId}
+                    onChange={(e) => seleccionarConsorcio(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {generando === "terceros" ? "Generando…" : `⬇ TXT Terceros (${cntTerceros} pagos)`}
-                  </button>
-                )}
-                {cntACH > 0 && (
-                  <button
-                    onClick={generarACH}
-                    disabled={generando !== null}
-                    className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-60"
-                  >
-                    {generando === "ach" ? "Generando…" : `⬇ TXT ACH (${cntACH} pagos)`}
-                  </button>
-                )}
-                {cntTerceros === 0 && cntACH === 0 && (
-                  <p className="text-sm text-slate-500">No hay pagos válidos para generar TXT.</p>
-                )}
-              </div>
+                    <option value="">— Selecciona un consorcio —</option>
+                    {todosGrupos.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nombre}
+                      </option>
+                    ))}
+                  </select>
+
+                  {grupo && (
+                    <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5">
+                      <svg className="h-4 w-4 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <p className="text-sm text-slate-700">
+                        <span className="font-medium">{grupo.nombre}</span>
+                        {" · "}
+                        {grupo.tipo_cuenta_origen === "CA" ? "Ahorros" : "Corriente"} · {grupo.moneda} ·{" "}
+                        <span className="font-mono">{grupo.numero_cuenta_origen}</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Botones de generación */}
+                  {grupo && (
+                    <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-4">
+                      {cntTerceros > 0 && (
+                        <button
+                          onClick={generarTerceros}
+                          disabled={generando !== null}
+                          className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60"
+                        >
+                          {generando === "terceros" ? "Generando…" : `⬇ TXT Terceros (${cntTerceros} pagos)`}
+                        </button>
+                      )}
+                      {cntACH > 0 && (
+                        <button
+                          onClick={generarACH}
+                          disabled={generando !== null}
+                          className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-60"
+                        >
+                          {generando === "ach" ? "Generando…" : `⬇ TXT ACH (${cntACH} pagos)`}
+                        </button>
+                      )}
+                      {cntTerceros === 0 && cntACH === 0 && (
+                        <p className="text-sm text-slate-500">No hay pagos válidos para generar TXT.</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 

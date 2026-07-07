@@ -12,6 +12,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard/contabilidad",   label: "Contabilidad",        icon: "check",    ver: (r) => esContabilidad(r) },
   { href: "/dashboard/recibos",        label: "Recibos",             icon: "receipt",  ver: (r) => esContratos(r) || esContabilidad(r) || esAdmin(r) },
   { href: "/dashboard/historial",      label: "Historial",           icon: "clock",    ver: () => true },
+  { href: "/dashboard/consorcios",     label: "Cuentas Consorcios",  icon: "bank",     ver: (r) => esAdmin(r) },
   { href: "/dashboard/usuarios",       label: "Usuarios",            icon: "users",    ver: (r) => esAdmin(r) },
   { href: "/dashboard/configuracion",  label: "Configuración",       icon: "settings", ver: (r) => esAdmin(r) },
 ];
@@ -40,6 +41,8 @@ function Icon({ name }: { name: string }) {
       return (<svg {...common}><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" /><path d="M8 7h8M8 11h8M8 15h5" /></svg>);
     case "users":
       return (<svg {...common}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /></svg>);
+    case "bank":
+      return (<svg {...common}><line x1="3" y1="22" x2="21" y2="22" /><line x1="6" y1="18" x2="6" y2="11" /><line x1="10" y1="18" x2="10" y2="11" /><line x1="14" y1="18" x2="14" y2="11" /><line x1="18" y1="18" x2="18" y2="11" /><polygon points="12 2 20 7 4 7" /></svg>);
     case "settings":
       return (<svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>);
     default:
