@@ -78,6 +78,14 @@ function normalizar(texto: unknown): string {
     .toUpperCase();
 }
 
+/** Elimina caracteres especiales de la descripción; conserva letras, números, acentos y espacios. */
+function limpiarDescripcion(valor: unknown): string {
+  return String(valor ?? "")
+    .replace(/[^a-zA-Z0-9áéíóúüñÁÉÍÓÚÜÑ\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Convierte "$ 4,000.00" o 4000 en el numero 4000. */
 export function parseMonto(valor: unknown): number {
   if (typeof valor === "number") return valor;
@@ -206,7 +214,7 @@ export function parseSolicitudRows(rows: unknown[][]): ParsedSolicitud {
       monto,
       montoTexto,
       fechaPago: get(row, "fechaPago"),
-      descripcion: get(row, "descripcion"),
+      descripcion: limpiarDescripcion(get(row, "descripcion")),
       tipoPago: detectarTipoPago(banco),
       errores,
       advertencias: [],
