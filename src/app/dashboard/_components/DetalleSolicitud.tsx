@@ -63,7 +63,7 @@ export default async function DetalleSolicitud({
 
   const { data: pagos } = await supabase
     .from("payments")
-    .select("fila, beneficiario, cedula_rnc, banco_destino, cuenta_banco, tipo_cuenta, monto, concepto, tiene_error, errores, estado_pago, concepto")
+    .select("fila, beneficiario, cedula_rnc, banco_destino, cuenta_banco, tipo_cuenta, monto, concepto, tiene_error, errores, estado_pago")
     .eq("batch_id", batchId)
     .order("fila", { ascending: true });
 
