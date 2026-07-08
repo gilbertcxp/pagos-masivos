@@ -63,7 +63,7 @@ export default async function DetalleSolicitud({
 
   const { data: pagos } = await supabase
     .from("payments")
-    .select("fila, beneficiario, cedula_rnc, banco_destino, cuenta_banco, tipo_cuenta, monto, concepto, tiene_error, errores, estado_pago")
+    .select("fila, beneficiario, cedula_rnc, banco_destino, cuenta_banco, tipo_cuenta, monto, concepto, tiene_error, errores, estado_pago, concepto")
     .eq("batch_id", batchId)
     .order("fila", { ascending: true });
 
@@ -151,6 +151,7 @@ export default async function DetalleSolicitud({
                 <th className="px-3 py-2 text-left font-medium">Banco</th>
                 <th className="px-3 py-2 text-left font-medium">Cuenta</th>
                 <th className="px-3 py-2 text-left font-medium">Tipo</th>
+                <th className="px-3 py-2 text-left font-medium">Descripción</th>
                 <th className="px-3 py-2 text-right font-medium">Monto</th>
                 {contexto === "contabilidad" && (
                   <th className="px-3 py-2 text-center font-medium">Estado</th>
@@ -166,6 +167,7 @@ export default async function DetalleSolicitud({
                   <td className="px-3 py-2 text-slate-600">{p.banco_destino || "—"}</td>
                   <td className="px-3 py-2 text-slate-600">{p.cuenta_banco || "—"}</td>
                   <td className="px-3 py-2 text-xs text-slate-500">{p.tipo_cuenta || "—"}</td>
+                  <td className="px-3 py-2 text-slate-600">{(p as { concepto?: string }).concepto || "—"}</td>
                   <td className="px-3 py-2 text-right text-slate-800">{money(Number(p.monto))}</td>
                   {contexto === "contabilidad" && (
                     <td className="px-3 py-2 text-center">
