@@ -91,6 +91,13 @@ export default function CargadorSolicitud() {
       return;
     }
 
+    const { data: perfil } = await supabase
+      .from("profiles")
+      .select("nombre, correo, rol")
+      .eq("id", user.id)
+      .single();
+    const nombreUsuario = perfil?.nombre || perfil?.correo || "";
+
     // 1) Crear el proceso (batch) en estado borrador
     //    El trigger set_numero_solicitud asigna numero_solicitud automáticamente
     const { data: batch, error: eBatch } = await supabase
@@ -103,7 +110,7 @@ export default function CargadorSolicitud() {
         contrato: contrato.trim() || null,
         conceptos_pagar: conceptos,
         encargado: datos.meta.encargado,
-        solicitado_por: datos.meta.solicitadoPor,
+        solicitado_por: nombreUsuario,
         total_registros: datos.totalRegistros,
         total_beneficiarios: datos.beneficiarios,
         monto_total: datos.montoTotal,
@@ -151,11 +158,10 @@ export default function CargadorSolicitud() {
     }
 
     // 4) Auditoría de creación
-    const { data: perfil } = await supabase.from("profiles").select("nombre, correo, rol").eq("id", user.id).single();
     await supabase.from("audit_log").insert({
       batch_id: batch.id,
       user_id: user.id,
-      user_nombre: perfil?.nombre || perfil?.correo || null,
+      user_nombre: nombreUsuario || null,
       user_rol: perfil?.rol ?? null,
       accion: "crear",
       descripcion: `Solicitud ${batch.numero_solicitud ?? ""} creada (${datos.totalRegistros} pagos)`,
