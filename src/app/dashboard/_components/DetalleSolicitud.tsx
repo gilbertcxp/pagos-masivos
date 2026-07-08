@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/roles";
 import BotonesFlujo from "./BotonesFlujo";
 import GeneradorReciboInline from "./GeneradorReciboInline";
+import BotonImprimir from "./BotonImprimir";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -48,7 +49,7 @@ export default async function DetalleSolicitud({
   const { data: b } = await supabase
     .from("payment_batches")
     .select(
-      "id, numero_solicitud, grupo, contrato, encargado, solicitado_por, tipo_pago, estado, total_registros, total_beneficiarios, monto_total, motivo_devolucion, excel_file_name, excel_storage_path, txt_file_name, txt_storage_path, created_at, published_at, reviewed_at, user_id, profiles:profiles!payment_batches_user_id_fkey(nombre, correo)"
+      "id, numero_solicitud, grupo, contrato, encargado, solicitado_por, tipo_pago, estado, total_registros, total_beneficiarios, monto_total, motivo_devolucion, excel_file_name, excel_storage_path, txt_file_name, txt_storage_path, created_at, published_at, reviewed_at, user_id, conceptos_pagar, profiles:profiles!payment_batches_user_id_fkey(nombre, correo)"
     )
     .eq("id", batchId)
     .single();
@@ -123,17 +124,33 @@ export default async function DetalleSolicitud({
           <Dato titulo="Publicada" valor={b.published_at ? new Date(b.published_at).toLocaleString("es-DO") : "—"} />
         </div>
 
-        <BotonesFlujo
-          batchId={b.id}
-          estado={estado}
-          mostrarPublicar={mostrarPublicar}
-          mostrarGestionar={mostrarGestionar}
-          mostrarCancelar={mostrarCancelar}
-          contexto={contexto}
-          txtStoragePath={b.txt_storage_path}
-          grupo={b.grupo}
-          tipoPago={b.tipo_pago}
-        />
+        {Array.isArray(b.conceptos_pagar) && (b.conceptos_pagar as string[]).length > 0 && (
+          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-4">
+            <p className="mb-2 text-sm font-semibold text-blue-800">Pagar:</p>
+            <ul className="space-y-1">
+              {(b.conceptos_pagar as string[]).map((c) => (
+                <li key={c} className="flex items-center gap-2 text-sm text-blue-700">
+                  <span className="text-blue-500">•</span> {c}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <BotonesFlujo
+            batchId={b.id}
+            estado={estado}
+            mostrarPublicar={mostrarPublicar}
+            mostrarGestionar={mostrarGestionar}
+            mostrarCancelar={mostrarCancelar}
+            contexto={contexto}
+            txtStoragePath={b.txt_storage_path}
+            grupo={b.grupo}
+            tipoPago={b.tipo_pago}
+          />
+          {contexto === "contabilidad" && <BotonImprimir />}
+        </div>
       </div>
 
       {/* Beneficiarios */}
