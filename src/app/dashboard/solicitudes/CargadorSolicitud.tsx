@@ -28,6 +28,7 @@ export default function CargadorSolicitud() {
   const [hojas, setHojas] = useState<string[]>([]);
   const [datos, setDatos] = useState<ParsedSolicitud | null>(null);
   const [contrato, setContrato] = useState("");
+  const [conceptos, setConceptos] = useState<string[]>([]);
   const [error, setError] = useState("");
 
   // Datos del batch creado
@@ -69,6 +70,7 @@ export default function CargadorSolicitud() {
     setFileName("");
     setHojas([]);
     setContrato("");
+    setConceptos([]);
     setBatchId(null);
     setNumeroSolicitud("");
     setError("");
@@ -89,6 +91,13 @@ export default function CargadorSolicitud() {
       return;
     }
 
+    const { data: perfil } = await supabase
+      .from("profiles")
+      .select("nombre, correo, rol")
+      .eq("id", user.id)
+      .single();
+    const nombreUsuario = perfil?.nombre || perfil?.correo || "";
+
     // 1) Crear el proceso (batch) en estado borrador
     //    El trigger set_numero_solicitud asigna numero_solicitud automáticamente
     const { data: batch, error: eBatch } = await supabase
@@ -99,8 +108,9 @@ export default function CargadorSolicitud() {
         excel_file_name: fileName,
         grupo: datos.meta.grupo,
         contrato: contrato.trim() || null,
+        conceptos_pagar: conceptos,
         encargado: datos.meta.encargado,
-        solicitado_por: datos.meta.solicitadoPor,
+        solicitado_por: nombreUsuario,
         total_registros: datos.totalRegistros,
         total_beneficiarios: datos.beneficiarios,
         monto_total: datos.montoTotal,
@@ -148,11 +158,10 @@ export default function CargadorSolicitud() {
     }
 
     // 4) Auditoría de creación
-    const { data: perfil } = await supabase.from("profiles").select("nombre, correo, rol").eq("id", user.id).single();
     await supabase.from("audit_log").insert({
       batch_id: batch.id,
       user_id: user.id,
-      user_nombre: perfil?.nombre || perfil?.correo || null,
+      user_nombre: nombreUsuario || null,
       user_rol: perfil?.rol ?? null,
       accion: "crear",
       descripcion: `Solicitud ${batch.numero_solicitud ?? ""} creada (${datos.totalRegistros} pagos)`,
@@ -271,9 +280,31 @@ export default function CargadorSolicitud() {
             <input
               value={contrato}
               onChange={(e) => setContrato(e.target.value)}
-              placeholder="Ej: CTR-2026-045 · Renta de locales"
+              placeholder="Ej: CTR-2026-045"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500"
             />
+          </div>
+
+          {/* Conceptos a pagar */}
+          <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4">
+            <p className="mb-3 text-sm font-medium text-slate-700">Conceptos a pagar</p>
+            <div className="flex flex-wrap gap-6">
+              {["Energía", "Renta", "Internet"].map((c) => (
+                <label key={c} className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={conceptos.includes(c)}
+                    onChange={() =>
+                      setConceptos((prev) =>
+                        prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+                      )
+                    }
+                    className="h-4 w-4 rounded border-slate-300 accent-blue-600"
+                  />
+                  <span className="text-sm text-slate-700">{c}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           {/* Resumen */}
