@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import * as XLSX from "xlsx";
@@ -29,7 +29,19 @@ export default function CargadorSolicitud() {
   const [datos, setDatos] = useState<ParsedSolicitud | null>(null);
   const [contrato, setContrato] = useState("");
   const [conceptos, setConceptos] = useState<string[]>([]);
+  const [grupoSeleccionado, setGrupoSeleccionado] = useState("");
+  const [grupos, setGrupos] = useState<{ nombre: string }[]>([]);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("grupos")
+      .select("nombre")
+      .eq("activo", true)
+      .order("nombre")
+      .then(({ data }) => { if (data) setGrupos(data); });
+  }, []);
 
   // Datos del batch creado
   const [batchId, setBatchId] = useState<string | null>(null);
@@ -51,6 +63,7 @@ export default function CargadorSolicitud() {
       setFileName(f.name);
       setHojas(wb.SheetNames);
       setDatos(res);
+      if (res.meta.grupo) setGrupoSeleccionado(res.meta.grupo);
       setFase("previsualizando");
     } catch (e) {
       console.error(e);
@@ -71,6 +84,7 @@ export default function CargadorSolicitud() {
     setHojas([]);
     setContrato("");
     setConceptos([]);
+    setGrupoSeleccionado("");
     setBatchId(null);
     setNumeroSolicitud("");
     setError("");
@@ -78,6 +92,10 @@ export default function CargadorSolicitud() {
 
   async function guardar() {
     if (!datos || !file) return;
+    if (!grupoSeleccionado) {
+      setError("Debes seleccionar un grupo antes de guardar.");
+      return;
+    }
     setFase("guardando");
     setError("");
     const supabase = createClient();
@@ -106,7 +124,7 @@ export default function CargadorSolicitud() {
         user_id: user.id,
         estado: "borrador",
         excel_file_name: fileName,
-        grupo: datos.meta.grupo,
+        grupo: grupoSeleccionado || datos.meta.grupo || null,
         contrato: contrato.trim() || null,
         conceptos_pagar: conceptos,
         encargado: datos.meta.encargado,
@@ -274,6 +292,23 @@ export default function CargadorSolicitud() {
         </Alerta>
       ) : (
         <>
+          {/* Grupo */}
+          <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4">
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Grupo <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={grupoSeleccionado}
+              onChange={(e) => setGrupoSeleccionado(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white"
+            >
+              <option value="">— Selecciona un grupo —</option>
+              {grupos.map((g) => (
+                <option key={g.nombre} value={g.nombre}>{g.nombre}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Datos del contrato */}
           <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4">
             <label className="mb-1 block text-sm font-medium text-slate-700">Número o nombre del contrato (opcional)</label>
