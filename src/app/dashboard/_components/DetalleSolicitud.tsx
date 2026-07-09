@@ -12,7 +12,7 @@ import { fmtFechaHora } from "@/lib/fecha";
 import BotonesFlujo from "./BotonesFlujo";
 import GeneradorReciboInline from "./GeneradorReciboInline";
 import BotonImprimir from "./BotonImprimir";
-import RespuestaDevolucion from "./RespuestaDevolucion";
+import { responderDevolucion } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -88,6 +88,14 @@ export default async function DetalleSolicitud({
   const mostrarGestionar   = puedeGestionar(rol, estado);
   const mostrarCancelar    = esContratos(rol) || (soyDueno && estado === "borrador");
 
+  const respuestaDevolucion = ((b as unknown) as { respuesta_devolucion?: string | null }).respuesta_devolucion ?? null;
+
+  async function enviarRespuesta(formData: FormData) {
+    "use server";
+    const resp = String(formData.get("respuesta") ?? "").trim();
+    if (resp) await responderDevolucion(batchId, resp);
+  }
+
   return (
     <div className="space-y-5">
       <div>
@@ -109,12 +117,36 @@ export default async function DetalleSolicitud({
         </div>
 
         {estado === "devuelta" && b.motivo_devolucion && (
-          <RespuestaDevolucion
-            batchId={b.id}
-            motivoDevolucion={b.motivo_devolucion}
-            respuestaActual={(b as { respuesta_devolucion?: string | null }).respuesta_devolucion ?? null}
-            puedeResponder={esContratos(rol) && contexto === "contratos"}
-          />
+          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 space-y-3">
+            <div>
+              <p className="text-sm font-medium text-red-800">Motivo de la devolución</p>
+              <p className="mt-1 text-sm text-red-700">{b.motivo_devolucion}</p>
+            </div>
+            {respuestaDevolucion && (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-xs font-medium text-emerald-800">Respuesta de Contratos</p>
+                <p className="mt-1 text-sm text-emerald-700">{respuestaDevolucion}</p>
+              </div>
+            )}
+            {esContratos(rol) && contexto === "contratos" && (
+              <form action={enviarRespuesta} className="space-y-2 border-t border-red-200 pt-3">
+                <p className="text-xs font-medium text-red-800">Tu respuesta a Contabilidad</p>
+                <textarea
+                  name="respuesta"
+                  defaultValue={respuestaDevolucion ?? ""}
+                  rows={3}
+                  placeholder="Escribe tu respuesta o aclaración…"
+                  className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-red-400 resize-none"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+                >
+                  Enviar respuesta
+                </button>
+              </form>
+            )}
+          </div>
         )}
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
