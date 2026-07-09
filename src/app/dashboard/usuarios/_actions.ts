@@ -11,3 +11,13 @@ export async function actualizarRol(userId: string, rol: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/dashboard/usuarios");
 }
+
+export async function actualizarNombrePersonal(userId: string, nombrePersonal: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ nombre_personal: nombrePersonal.trim() })
+    .eq("id", userId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard/usuarios");
+}
