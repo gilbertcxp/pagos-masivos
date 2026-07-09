@@ -69,11 +69,10 @@ export default function GeneradorRecibo() {
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
-  const pagosPendientes = pagos.filter((p) => p.estado_pago !== "pagado");
-  const pagosSeleccionados = pagosPendientes.filter((p) => seleccionados.has(p.id));
+  const pagosSeleccionados = pagos.filter((p) => seleccionados.has(p.id));
   const montoSeleccionado = pagosSeleccionados.reduce((s, p) => s + Number(p.monto), 0);
   const todosSeleccionados =
-    pagosPendientes.length > 0 && pagosSeleccionados.length === pagosPendientes.length;
+    pagos.length > 0 && pagosSeleccionados.length === pagos.length;
   const puedeGenerar = pagosSeleccionados.length > 0 && !trabajando;
 
   const cargar = useCallback(async () => {
@@ -115,7 +114,7 @@ export default function GeneradorRecibo() {
 
     const payList = (pays ?? []) as Payment[];
     setPagos(payList);
-    setSeleccionados(new Set(payList.filter((p) => p.estado_pago !== "pagado").map((p) => p.id)));
+    setSeleccionados(new Set(payList.map((p) => p.id)));
     setBatchReceipt((receipt as BatchReceipt) ?? null);
     setCargandoPagos(false);
   }
@@ -133,7 +132,7 @@ export default function GeneradorRecibo() {
     if (todosSeleccionados) {
       setSeleccionados(new Set());
     } else {
-      setSeleccionados(new Set(pagosPendientes.map((p) => p.id)));
+      setSeleccionados(new Set(pagos.map((p) => p.id)));
     }
   }
 
@@ -344,7 +343,7 @@ export default function GeneradorRecibo() {
                               type="checkbox"
                               checked={todosSeleccionados}
                               onChange={toggleTodos}
-                              disabled={pagosPendientes.length === 0}
+                              disabled={pagos.length === 0}
                               title={
                                 todosSeleccionados ? "Deseleccionar todos" : "Seleccionar todos"
                               }
@@ -371,44 +370,23 @@ export default function GeneradorRecibo() {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {pagos.map((p) => {
-                          const pagado = p.estado_pago === "pagado";
                           const checked = seleccionados.has(p.id);
                           return (
                             <tr
                               key={p.id}
-                              onClick={() => !pagado && toggleSeleccion(p.id)}
-                              className={`transition-colors ${
-                                pagado
-                                  ? "bg-slate-50 opacity-60"
-                                  : checked
-                                  ? "bg-blue-50"
-                                  : "cursor-pointer hover:bg-slate-50"
+                              onClick={() => toggleSeleccion(p.id)}
+                              className={`cursor-pointer transition-colors ${
+                                checked ? "bg-blue-50" : "hover:bg-slate-50"
                               }`}
                             >
                               <td className="px-3 py-2.5">
-                                {pagado ? (
-                                  <svg
-                                    className="h-4 w-4 text-emerald-500"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth={2.5}
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      d="M5 13l4 4L19 7"
-                                    />
-                                  </svg>
-                                ) : (
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => toggleSeleccion(p.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600"
-                                  />
-                                )}
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleSeleccion(p.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600"
+                                />
                               </td>
                               <td className="px-3 py-2.5 text-slate-400">{p.fila ?? "—"}</td>
                               <td className="px-3 py-2.5 font-medium text-slate-800">
