@@ -23,6 +23,7 @@ export default async function Page() {
   const { data: batches } = await supabase
     .from("payment_batches")
     .select("id, numero_solicitud, grupo, contrato, estado, total_registros, monto_total, created_at, published_at, motivo_devolucion")
+    .neq("estado", "cancelada")
     .order("created_at", { ascending: false });
 
   return (

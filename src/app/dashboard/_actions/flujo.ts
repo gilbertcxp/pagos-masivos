@@ -193,11 +193,14 @@ export async function marcarPagada(batchId: string) {
   revalidatePath("/dashboard/historial");
 }
 
-/** Cancela una solicitud (admin o dueño en borrador). */
-export async function cancelarSolicitud(batchId: string) {
+/** Cancela una solicitud con motivo obligatorio. */
+export async function cancelarSolicitud(batchId: string, motivo: string = "") {
   const { supabase, user, perfil } = await contexto();
   await supabase.from("payment_batches").update({ estado: "cancelada" }).eq("id", batchId);
-  await auditar(supabase, user.id, perfil, batchId, "cancelar", `Solicitud cancelada por ${perfil?.nombre ?? "usuario"}`);
+  const desc = motivo.trim()
+    ? `Solicitud cancelada por ${perfil?.nombre ?? "usuario"}. Motivo: ${motivo.trim()}`
+    : `Solicitud cancelada por ${perfil?.nombre ?? "usuario"}`;
+  await auditar(supabase, user.id, perfil, batchId, "cancelar", desc);
   revalidatePath("/dashboard/solicitudes");
   revalidatePath("/dashboard/contabilidad");
   revalidatePath("/dashboard/historial");
@@ -215,19 +218,23 @@ export async function responderDevolucion(batchId: string, respuesta: string) {
   revalidatePath("/dashboard/contabilidad");
 }
 
-/** Versión para form action (lee batchId y respuesta de FormData). */
-export async function responderDevolucionAction(formData: FormData) {
+/** Contratos responde y reenvía a Contabilidad en un solo paso. */
+export async function responderYReenviarAction(formData: FormData) {
   const batchId = String(formData.get("batchId") ?? "");
   const respuesta = String(formData.get("respuesta") ?? "").trim();
-  if (!batchId || !respuesta) return;
+  if (!batchId) return;
   const { supabase, user, perfil } = await contexto();
   await supabase
     .from("payment_batches")
-    .update({ respuesta_devolucion: respuesta })
+    .update({ respuesta_devolucion: respuesta || null, estado: "publicada" })
     .eq("id", batchId);
-  await auditar(supabase, user.id, perfil, batchId, "responder_devolucion", `Respuesta a devolución: ${respuesta}`);
+  const desc = respuesta
+    ? `Solicitud reenviada a Contabilidad. Respuesta: ${respuesta}`
+    : `Solicitud reenviada a Contabilidad por ${perfil?.nombre ?? "usuario"}`;
+  await auditar(supabase, user.id, perfil, batchId, "publicar", desc);
   revalidatePath("/dashboard/solicitudes");
   revalidatePath("/dashboard/contabilidad");
+  revalidatePath("/dashboard/historial");
 }
 
 /** Auditar la generación del TXT (llamada desde el cliente tras generar). */

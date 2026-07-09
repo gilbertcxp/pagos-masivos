@@ -37,6 +37,8 @@ export default function BotonesFlujo({
   const [error, setError] = useState("");
   const [modalDevolver, setModalDevolver] = useState(false);
   const [motivo, setMotivo] = useState("");
+  const [modalCancelar, setModalCancelar] = useState(false);
+  const [motivoCancelar, setMotivoCancelar] = useState("");
 
   function ejecutar(fn: () => Promise<void>) {
     setError("");
@@ -114,13 +116,10 @@ export default function BotonesFlujo({
           </button>
         )}
 
-        {mostrarCancelar && (estado === "borrador" || estado === "publicada" || estado === "en_revision") && (
+        {mostrarCancelar && (estado === "borrador" || estado === "publicada" || estado === "en_revision" || estado === "devuelta") && (
           <button
             disabled={pendiente}
-            onClick={() => {
-              if (!confirm("¿Cancelar esta solicitud? Esta acción quedará en el historial.")) return;
-              ejecutar(() => cancelarSolicitud(batchId));
-            }}
+            onClick={() => setModalCancelar(true)}
             className="ml-auto rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
           >
             Cancelar solicitud
@@ -162,6 +161,41 @@ export default function BotonesFlujo({
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
               >
                 Confirmar devolución
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Cancelar */}
+      {modalCancelar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setModalCancelar(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-800">Cancelar solicitud</h3>
+            <p className="mt-1 text-sm text-slate-500">Esta acción quedará registrada en el historial y no podrá revertirse.</p>
+            <textarea
+              value={motivoCancelar}
+              onChange={(e) => setMotivoCancelar(e.target.value)}
+              rows={3}
+              placeholder="Indica el motivo de la cancelación…"
+              className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+            />
+            {motivoCancelar.length > 0 && motivoCancelar.trim().length < 5 && (
+              <p className="mt-1 text-xs text-red-600">Escribe al menos 5 caracteres.</p>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => { setModalCancelar(false); setMotivoCancelar(""); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Volver</button>
+              <button
+                disabled={pendiente || motivoCancelar.trim().length < 5}
+                onClick={() => {
+                  const m = motivoCancelar;
+                  setModalCancelar(false);
+                  setMotivoCancelar("");
+                  ejecutar(() => cancelarSolicitud(batchId, m));
+                }}
+                className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                Confirmar cancelación
               </button>
             </div>
           </div>

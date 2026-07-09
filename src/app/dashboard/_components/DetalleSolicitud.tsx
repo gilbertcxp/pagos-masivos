@@ -12,7 +12,7 @@ import { fmtFechaHora } from "@/lib/fecha";
 import BotonesFlujo from "./BotonesFlujo";
 import GeneradorReciboInline from "./GeneradorReciboInline";
 import BotonImprimir from "./BotonImprimir";
-import { responderDevolucionAction } from "@/app/dashboard/_actions/flujo";
+import { responderYReenviarAction } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -84,7 +84,7 @@ export default async function DetalleSolicitud({
                     || (perfilDueno as { nombre?: string; correo?: string } | null)?.correo
                     || "—";
 
-  const mostrarPublicar    = puedePublicar(rol, estado, soyDueno);
+  const mostrarPublicar    = puedePublicar(rol, estado, soyDueno) && !(estado === "devuelta" && contexto === "contratos");
   const mostrarGestionar   = puedeGestionar(rol, estado);
   const mostrarCancelar    = esContratos(rol) || (soyDueno && estado === "borrador");
 
@@ -123,21 +123,21 @@ export default async function DetalleSolicitud({
               </div>
             )}
             {esContratos(rol) && contexto === "contratos" && (
-              <form action={responderDevolucionAction} className="space-y-2 border-t border-red-200 pt-3">
+              <form action={responderYReenviarAction} className="space-y-2 border-t border-red-200 pt-3">
                 <input type="hidden" name="batchId" value={b.id} />
-                <p className="text-xs font-medium text-red-800">Tu respuesta a Contabilidad</p>
+                <p className="text-xs font-medium text-red-800">Respuesta a Contabilidad <span className="font-normal text-red-600">(opcional)</span></p>
                 <textarea
                   name="respuesta"
                   defaultValue={respuestaDevolucion ?? ""}
                   rows={3}
-                  placeholder="Escribe tu respuesta o aclaración…"
+                  placeholder="Explica las correcciones realizadas…"
                   className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-red-400 resize-none"
                 />
                 <button
                   type="submit"
-                  className="rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
                 >
-                  Enviar respuesta
+                  Responder y Reenviar a Contabilidad
                 </button>
               </form>
             )}
