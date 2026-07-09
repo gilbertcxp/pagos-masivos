@@ -4,7 +4,7 @@ import {
   ETIQUETA_ESTADO,
   puedePublicar,
   puedeGestionar,
-  esAdmin,
+  esContratos,
   type Estado,
   type Rol,
 } from "@/lib/auth/roles";
@@ -85,7 +85,7 @@ export default async function DetalleSolicitud({
 
   const mostrarPublicar    = puedePublicar(rol, estado, soyDueno);
   const mostrarGestionar   = puedeGestionar(rol, estado);
-  const mostrarCancelar    = esAdmin(rol) || (soyDueno && estado === "borrador");
+  const mostrarCancelar    = esContratos(rol) || (soyDueno && estado === "borrador");
 
   return (
     <div className="space-y-5">
