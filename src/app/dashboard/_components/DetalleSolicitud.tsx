@@ -123,6 +123,7 @@ export default async function DetalleSolicitud({
                 <p className="mt-1 text-sm text-emerald-700">{respuestaDevolucion}</p>
               </div>
             )}
+            <p className="text-xs text-slate-400">debug: rol={rol} ctx={contexto} esC={String(esContratos(rol))}</p>
             {esContratos(rol) && contexto === "contratos" && (
               <form action={enviarRespuesta} className="space-y-2 border-t border-red-200 pt-3">
                 <p className="text-xs font-medium text-red-800">Tu respuesta a Contabilidad</p>
