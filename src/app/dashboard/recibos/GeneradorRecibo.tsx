@@ -422,14 +422,7 @@ export default function GeneradorRecibo() {
                   {/* Resumen de selección */}
                   <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
                     <span>
-                      {pagosSeleccionados.length} de {pagosPendientes.length} pendientes
-                      seleccionados
-                      {pagos.some((p) => p.estado_pago === "pagado") && (
-                        <>
-                          {" "}
-                          · {pagos.filter((p) => p.estado_pago === "pagado").length} ya pagados
-                        </>
-                      )}
+                      {pagosSeleccionados.length} de {pagos.length} seleccionados
                     </span>
                     {pagosSeleccionados.length > 0 && (
                       <span className="font-semibold text-slate-700">
