@@ -8,6 +8,7 @@ import {
   type Estado,
   type Rol,
 } from "@/lib/auth/roles";
+import { fmtFechaHora } from "@/lib/fecha";
 import BotonesFlujo from "./BotonesFlujo";
 import GeneradorReciboInline from "./GeneradorReciboInline";
 import BotonImprimir from "./BotonImprimir";
@@ -120,8 +121,8 @@ export default async function DetalleSolicitud({
           <Dato titulo="Encargado" valor={b.encargado || "—"} />
           <Dato titulo="Solicitado por" valor={b.solicitado_por || "—"} />
           <Dato titulo="Creada por" valor={nombreDueno} />
-          <Dato titulo="Creada" valor={new Date(b.created_at).toLocaleString("es-DO")} />
-          <Dato titulo="Publicada" valor={b.published_at ? new Date(b.published_at).toLocaleString("es-DO") : "—"} />
+          <Dato titulo="Creada" valor={fmtFechaHora(b.created_at)} />
+          <Dato titulo="Publicada" valor={fmtFechaHora(b.published_at)} />
         </div>
 
         {Array.isArray(b.conceptos_pagar) && (b.conceptos_pagar as string[]).length > 0 && (
@@ -229,7 +230,7 @@ export default async function DetalleSolicitud({
                       {e.user_nombre || "—"}
                       {e.user_rol ? ` · ${e.user_rol}` : ""}
                       {" · "}
-                      {new Date(e.created_at).toLocaleString("es-DO")}
+                      {fmtFechaHora(e.created_at)}
                     </p>
                     {motivo && <p className="mt-1 text-xs text-red-600">Motivo: {motivo}</p>}
                   </div>

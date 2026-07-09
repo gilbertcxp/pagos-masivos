@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { fmtFechaHoraCorta } from "@/lib/fecha";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -137,7 +138,7 @@ export default function HistorialLista() {
                 const est = ESTADOS[b.estado] ?? { texto: b.estado, clase: "bg-slate-100 text-slate-600" };
                 return (
                   <tr key={b.id} className="border-t border-slate-100">
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{new Date(b.created_at).toLocaleString("es-DO", { dateStyle: "short", timeStyle: "short" })}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{fmtFechaHoraCorta(b.created_at)}</td>
                     <td className="px-4 py-3 font-medium text-slate-800">{b.grupo || "—"}</td>
                     <td className="px-4 py-3 text-slate-600">{b.profiles?.nombre || b.profiles?.correo || "—"}</td>
                     <td className="px-4 py-3 capitalize text-slate-600">{b.tipo_pago || "—"}</td>
