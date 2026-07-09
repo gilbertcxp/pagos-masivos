@@ -203,6 +203,18 @@ export async function cancelarSolicitud(batchId: string) {
   revalidatePath("/dashboard/historial");
 }
 
+/** Contratos responde al motivo de devolución de Contabilidad. */
+export async function responderDevolucion(batchId: string, respuesta: string) {
+  const { supabase, user, perfil } = await contexto();
+  await supabase
+    .from("payment_batches")
+    .update({ respuesta_devolucion: respuesta })
+    .eq("id", batchId);
+  await auditar(supabase, user.id, perfil, batchId, "responder_devolucion", `Respuesta a devolución: ${respuesta}`);
+  revalidatePath("/dashboard/solicitudes");
+  revalidatePath("/dashboard/contabilidad");
+}
+
 /** Auditar la generación del TXT (llamada desde el cliente tras generar). */
 export async function registrarTxtGenerado(batchId: string, nombreArchivo: string, tipo: string) {
   const { supabase, user, perfil } = await contexto();

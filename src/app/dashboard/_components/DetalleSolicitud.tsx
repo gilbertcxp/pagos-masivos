@@ -12,6 +12,7 @@ import { fmtFechaHora } from "@/lib/fecha";
 import BotonesFlujo from "./BotonesFlujo";
 import GeneradorReciboInline from "./GeneradorReciboInline";
 import BotonImprimir from "./BotonImprimir";
+import RespuestaDevolucion from "./RespuestaDevolucion";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -50,7 +51,7 @@ export default async function DetalleSolicitud({
   const { data: b } = await supabase
     .from("payment_batches")
     .select(
-      "id, numero_solicitud, grupo, contrato, encargado, solicitado_por, tipo_pago, estado, total_registros, total_beneficiarios, monto_total, motivo_devolucion, excel_file_name, excel_storage_path, txt_file_name, txt_storage_path, created_at, published_at, reviewed_at, user_id, conceptos_pagar, profiles:profiles!payment_batches_user_id_fkey(nombre, correo)"
+      "id, numero_solicitud, grupo, contrato, encargado, solicitado_por, tipo_pago, estado, total_registros, total_beneficiarios, monto_total, motivo_devolucion, respuesta_devolucion, excel_file_name, excel_storage_path, txt_file_name, txt_storage_path, created_at, published_at, reviewed_at, user_id, conceptos_pagar, profiles:profiles!payment_batches_user_id_fkey(nombre, correo)"
     )
     .eq("id", batchId)
     .single();
@@ -108,10 +109,12 @@ export default async function DetalleSolicitud({
         </div>
 
         {estado === "devuelta" && b.motivo_devolucion && (
-          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm font-medium text-red-800">Motivo de la devolución</p>
-            <p className="mt-1 text-sm text-red-700">{b.motivo_devolucion}</p>
-          </div>
+          <RespuestaDevolucion
+            batchId={b.id}
+            motivoDevolucion={b.motivo_devolucion}
+            respuestaActual={(b as { respuesta_devolucion?: string | null }).respuesta_devolucion ?? null}
+            puedeResponder={esContratos(rol) && contexto === "contratos"}
+          />
         )}
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
