@@ -215,6 +215,13 @@ export async function responderDevolucion(batchId: string, respuesta: string) {
   revalidatePath("/dashboard/contabilidad");
 }
 
+/** Versión para form action (acepta FormData con campo "respuesta"). */
+export async function responderDevolucionForm(batchId: string, formData: FormData) {
+  const respuesta = String(formData.get("respuesta") ?? "").trim();
+  if (!respuesta) return;
+  await responderDevolucion(batchId, respuesta);
+}
+
 /** Auditar la generación del TXT (llamada desde el cliente tras generar). */
 export async function registrarTxtGenerado(batchId: string, nombreArchivo: string, tipo: string) {
   const { supabase, user, perfil } = await contexto();

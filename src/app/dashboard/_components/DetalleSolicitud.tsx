@@ -12,7 +12,7 @@ import { fmtFechaHora } from "@/lib/fecha";
 import BotonesFlujo from "./BotonesFlujo";
 import GeneradorReciboInline from "./GeneradorReciboInline";
 import BotonImprimir from "./BotonImprimir";
-import { responderDevolucion } from "@/app/dashboard/_actions/flujo";
+import { responderDevolucionForm } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -89,12 +89,7 @@ export default async function DetalleSolicitud({
   const mostrarCancelar    = esContratos(rol) || (soyDueno && estado === "borrador");
 
   const respuestaDevolucion = ((b as unknown) as { respuesta_devolucion?: string | null }).respuesta_devolucion ?? null;
-
-  async function enviarRespuesta(formData: FormData) {
-    "use server";
-    const resp = String(formData.get("respuesta") ?? "").trim();
-    if (resp) await responderDevolucion(batchId, resp);
-  }
+  const enviarRespuesta = responderDevolucionForm.bind(null, b.id);
 
   return (
     <div className="space-y-5">
