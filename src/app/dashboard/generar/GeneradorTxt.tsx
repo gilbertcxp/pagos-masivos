@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fmtFechaHora } from "@/lib/fecha";
 import { detectarTipoPago, type PagoRow } from "@/lib/excel/parseSolicitud";
 import {
   generarTxtTerceros,
@@ -268,7 +269,7 @@ export default function GeneradorTxt() {
                   <button onClick={() => seleccionar(b)} className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-slate-50">
                     <div>
                       <p className="font-medium text-slate-800">{b.grupo || b.excel_file_name || "Solicitud"}</p>
-                      <p className="text-xs text-slate-500">{new Date(b.created_at).toLocaleString("es-DO")} · {b.total_registros} pagos · {money(Number(b.monto_total))}</p>
+                      <p className="text-xs text-slate-500">{fmtFechaHora(b.created_at)} · {b.total_registros} pagos · {money(Number(b.monto_total))}</p>
                     </div>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs capitalize text-slate-600">{b.estado.replace("_"," ")}</span>
                   </button>

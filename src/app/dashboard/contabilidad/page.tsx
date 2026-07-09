@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/auth/roles";
+import { fmtFecha } from "@/lib/fecha";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -90,7 +91,7 @@ function ListaBatches({ titulo, vacio, batches }: { titulo: string; vacio: strin
                     <p className="font-medium text-slate-800">{b.numero_solicitud ?? "—"} · {b.grupo || "—"}</p>
                     <p className="text-xs text-slate-500">
                       {b.contrato ? `${b.contrato} · ` : ""}
-                      Creada por {nombre} · {new Date(b.published_at ?? b.created_at).toLocaleDateString("es-DO")}
+                      Creada por {nombre} · {fmtFecha(b.published_at ?? b.created_at)}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">

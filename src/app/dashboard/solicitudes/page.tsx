@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ETIQUETA_ESTADO, esViewer, type Estado, type Rol } from "@/lib/auth/roles";
+import { fmtFecha } from "@/lib/fecha";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -78,7 +79,7 @@ export default async function Page() {
                       <div className="font-medium text-slate-800">{b.grupo || "—"}</div>
                       {b.contrato && <div className="text-xs text-slate-500">{b.contrato}</div>}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{new Date(b.created_at).toLocaleDateString("es-DO")}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">{fmtFecha(b.created_at)}</td>
                     <td className="px-4 py-3 text-right text-slate-600">{b.total_registros}</td>
                     <td className="px-4 py-3 text-right text-slate-800">{money(Number(b.monto_total))}</td>
                     <td className="px-4 py-3"><span className={"rounded-full px-2.5 py-1 text-xs " + est.clase}>{est.texto}</span></td>

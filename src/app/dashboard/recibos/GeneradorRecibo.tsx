@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { construirZipRecibos, type PagoRecibo, type MetaRecibo } from "@/lib/recibo/generarRecibos";
+import { fmtFechaHora } from "@/lib/fecha";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -285,7 +286,7 @@ export default function GeneradorRecibo() {
                     <div>
                       <p className="font-medium text-slate-800">{b.grupo || "Proceso"}</p>
                       <p className="text-xs text-slate-500">
-                        {new Date(b.created_at).toLocaleString("es-DO")} · {b.total_registros}{" "}
+                        {fmtFechaHora(b.created_at)} · {b.total_registros}{" "}
                         pagos · {money(Number(b.monto_total))}
                       </p>
                     </div>

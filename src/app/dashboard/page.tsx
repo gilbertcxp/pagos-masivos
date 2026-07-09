@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { fmtFecha } from "@/lib/fecha";
 
 function formatMoney(n: number) {
   return new Intl.NumberFormat("es-DO", {
@@ -91,7 +92,7 @@ export default async function DashboardPage() {
             <tbody>
               {batches.map((b) => (
                 <tr key={b.id} className="border-t border-slate-100">
-                  <td className="px-5 py-3 text-slate-700">{new Date(b.created_at).toLocaleDateString("es-DO")}</td>
+                  <td className="px-5 py-3 text-slate-700">{fmtFecha(b.created_at)}</td>
                   <td className="px-5 py-3 text-slate-700">{b.total_registros}</td>
                   <td className="px-5 py-3 text-slate-700">{formatMoney(Number(b.monto_total ?? 0))}</td>
                   <td className="px-5 py-3"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs capitalize text-slate-600">{b.estado}</span></td>
