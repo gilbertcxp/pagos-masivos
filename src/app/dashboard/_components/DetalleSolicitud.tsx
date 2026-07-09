@@ -12,7 +12,7 @@ import { fmtFechaHora } from "@/lib/fecha";
 import BotonesFlujo from "./BotonesFlujo";
 import GeneradorReciboInline from "./GeneradorReciboInline";
 import BotonImprimir from "./BotonImprimir";
-import { responderDevolucionForm } from "@/app/dashboard/_actions/flujo";
+import { responderDevolucionAction } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -89,7 +89,6 @@ export default async function DetalleSolicitud({
   const mostrarCancelar    = esContratos(rol) || (soyDueno && estado === "borrador");
 
   const respuestaDevolucion = ((b as unknown) as { respuesta_devolucion?: string | null }).respuesta_devolucion ?? null;
-  const enviarRespuesta = responderDevolucionForm.bind(null, b.id);
 
   return (
     <div className="space-y-5">
@@ -123,9 +122,9 @@ export default async function DetalleSolicitud({
                 <p className="mt-1 text-sm text-emerald-700">{respuestaDevolucion}</p>
               </div>
             )}
-            <p className="text-xs text-slate-400">debug: rol={rol} ctx={contexto} esC={String(esContratos(rol))}</p>
             {esContratos(rol) && contexto === "contratos" && (
-              <form action={enviarRespuesta} className="space-y-2 border-t border-red-200 pt-3">
+              <form action={responderDevolucionAction} className="space-y-2 border-t border-red-200 pt-3">
+                <input type="hidden" name="batchId" value={b.id} />
                 <p className="text-xs font-medium text-red-800">Tu respuesta a Contabilidad</p>
                 <textarea
                   name="respuesta"

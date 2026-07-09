@@ -215,11 +215,19 @@ export async function responderDevolucion(batchId: string, respuesta: string) {
   revalidatePath("/dashboard/contabilidad");
 }
 
-/** Versión para form action (acepta FormData con campo "respuesta"). */
-export async function responderDevolucionForm(batchId: string, formData: FormData) {
+/** Versión para form action (lee batchId y respuesta de FormData). */
+export async function responderDevolucionAction(formData: FormData) {
+  const batchId = String(formData.get("batchId") ?? "");
   const respuesta = String(formData.get("respuesta") ?? "").trim();
-  if (!respuesta) return;
-  await responderDevolucion(batchId, respuesta);
+  if (!batchId || !respuesta) return;
+  const { supabase, user, perfil } = await contexto();
+  await supabase
+    .from("payment_batches")
+    .update({ respuesta_devolucion: respuesta })
+    .eq("id", batchId);
+  await auditar(supabase, user.id, perfil, batchId, "responder_devolucion", `Respuesta a devolución: ${respuesta}`);
+  revalidatePath("/dashboard/solicitudes");
+  revalidatePath("/dashboard/contabilidad");
 }
 
 /** Auditar la generación del TXT (llamada desde el cliente tras generar). */
