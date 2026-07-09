@@ -111,10 +111,10 @@ export default function CargadorSolicitud() {
 
     const { data: perfil } = await supabase
       .from("profiles")
-      .select("nombre, correo, rol")
+      .select("nombre, nombre_personal, correo, rol")
       .eq("id", user.id)
       .single();
-    const nombreUsuario = perfil?.nombre || perfil?.correo || "";
+    const nombreUsuario = perfil?.nombre_personal || perfil?.correo || "";
 
     // 1) Crear el proceso (batch) en estado borrador
     //    El trigger set_numero_solicitud asigna numero_solicitud automáticamente

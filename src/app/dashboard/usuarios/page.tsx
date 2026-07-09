@@ -9,7 +9,7 @@ export default async function Page() {
 
   const { data: usuarios } = await supabase
     .from("profiles")
-    .select("id, nombre, correo, rol")
+    .select("id, nombre, nombre_personal, correo, rol")
     .order("correo", { ascending: true });
 
   return (
@@ -34,6 +34,7 @@ export default async function Page() {
                 key={u.id}
                 id={u.id}
                 nombre={u.nombre ?? ""}
+                nombrePersonal={u.nombre_personal ?? ""}
                 correo={u.correo ?? ""}
                 rol={u.rol ?? "usuario"}
                 esYo={u.id === user?.id}
