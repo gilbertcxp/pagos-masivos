@@ -371,6 +371,7 @@ export default function GeneradorRecibo() {
                       <tbody className="divide-y divide-slate-100">
                         {pagos.map((p) => {
                           const checked = seleccionados.has(p.id);
+                          const pagado = p.estado_pago === "pagado";
                           return (
                             <tr
                               key={p.id}
