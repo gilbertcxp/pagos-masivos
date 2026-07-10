@@ -37,6 +37,11 @@ export function tipoCuentaDestino(tipoExcel: string): "CA" | "CC" {
   return "CA"; // AHORRO u otros -> CA
 }
 
+/** Elimina todo lo que no sea dígito del número de cuenta. */
+export function limpiarCuenta(cuenta: string): string {
+  return String(cuenta ?? "").replace(/[^0-9]/g, "");
+}
+
 /** Limpia la descripcion: sin comas (romperian el CSV), sin dobles espacios, cortada a 55. */
 export function limpiarDescripcion(texto: string, max = MAX_DESC): string {
   return String(texto ?? "")
@@ -50,9 +55,10 @@ export function limpiarDescripcion(texto: string, max = MAX_DESC): string {
 /** Valida los campos que exige el TXT de terceros para un pago concreto. */
 export function validarPagoTerceros(pago: PagoRow): string[] {
   const errores: string[] = [];
-  if (!pago.cuenta) errores.push("Falta la cuenta destino");
-  else if (!/^[0-9]{1,10}$/.test(pago.cuenta))
-    errores.push("La cuenta destino debe ser numérica de máx. 10 dígitos");
+  const cuentaLimpia = limpiarCuenta(pago.cuenta);
+  if (!cuentaLimpia) errores.push("Falta la cuenta destino");
+  else if (cuentaLimpia.length > 10)
+    errores.push("La cuenta destino excede 10 dígitos");
   if (!pago.tipo) errores.push("Falta el tipo de cuenta (AHORRO/CORRIENTE)");
   if (pago.monto <= 0) errores.push("Monto inválido");
   return errores;
@@ -69,7 +75,7 @@ export function generarLineaTerceros(
     origen.numeroCuenta,
     tipoCuentaDestino(pago.tipo),
     "DOP",
-    pago.cuenta,
+    limpiarCuenta(pago.cuenta),
     pago.monto.toFixed(2),
     limpiarDescripcion(descripcion),
   ].join(",");

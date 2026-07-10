@@ -19,7 +19,7 @@
  */
 
 import type { PagoRow } from "../excel/parseSolicitud";
-import { tipoCuentaDestino, limpiarDescripcion, type ConfigOrigen, type ResultadoTxt } from "./generarTerceros";
+import { tipoCuentaDestino, limpiarDescripcion, limpiarCuenta, type ConfigOrigen, type ResultadoTxt } from "./generarTerceros";
 
 // ─────────────────────────────────────────────────────
 // Tabla de codigos ACH (Ruta y Transito RED ACH RD)
@@ -130,7 +130,7 @@ export function generarLineaACH(pago: PagoRow, origen: ConfigOrigen, descripcion
     origen.numeroCuenta,
     codigo,
     tipoCuentaDestino(pago.tipo),
-    pago.cuenta,
+    limpiarCuenta(pago.cuenta),
     pago.monto.toFixed(2),
     limpiarNombre(pago.beneficiario),
     tipoId,
