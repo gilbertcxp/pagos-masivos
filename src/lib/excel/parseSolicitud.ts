@@ -99,7 +99,7 @@ export function parseMonto(valor: unknown): number {
 /** Detecta si el banco destino es Banreservas (terceros) u otro (interbancaria). */
 export function detectarTipoPago(banco: string): "interbancaria" | "terceros" {
   const b = normalizar(banco);
-  return b.includes("RESERVAS") ? "terceros" : "interbancaria";
+  return b.includes("RESERVA") ? "terceros" : "interbancaria";
 }
 
 export function parseSolicitudRows(rows: unknown[][]): ParsedSolicitud {
