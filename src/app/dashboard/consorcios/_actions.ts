@@ -10,18 +10,23 @@ const normNombre = (s: string) =>
     .trim()
     .toUpperCase();
 
-function validar(nombre: string, cuenta: string) {
-  if (!nombre.trim()) throw new Error("El nombre del consorcio es obligatorio.");
+type Resultado = { ok: true } | { ok: false; mensaje: string };
+
+function validar(nombre: string, cuenta: string): string | null {
+  if (!nombre.trim()) return "El nombre del consorcio es obligatorio.";
   if (!/^[0-9]{1,10}$/.test(cuenta.trim()))
-    throw new Error("La cuenta debe ser numérica (máx. 10 dígitos).");
+    return "La cuenta debe ser numérica (máx. 10 dígitos).";
+  return null;
 }
 
 export async function crearConsorcio(
   nombre: string,
   numeroCuenta: string,
   tipoCuenta: "CA" | "CC",
-) {
-  validar(nombre, numeroCuenta);
+): Promise<Resultado> {
+  const errValidacion = validar(nombre, numeroCuenta);
+  if (errValidacion) return { ok: false, mensaje: errValidacion };
+
   const supabase = await createClient();
   const { error } = await supabase.from("grupos").insert({
     nombre: nombre.trim(),
@@ -31,10 +36,11 @@ export async function crearConsorcio(
     moneda: "DOP",
   });
   if (error) {
-    if (error.code === "23505") throw new Error("Ya existe un consorcio con ese nombre.");
-    throw new Error(error.message);
+    if (error.code === "23505") return { ok: false, mensaje: "Ya existe un consorcio con ese nombre." };
+    return { ok: false, mensaje: error.message };
   }
   revalidatePath("/dashboard/consorcios");
+  return { ok: true };
 }
 
 export async function editarConsorcio(
@@ -42,8 +48,10 @@ export async function editarConsorcio(
   nombre: string,
   numeroCuenta: string,
   tipoCuenta: "CA" | "CC",
-) {
-  validar(nombre, numeroCuenta);
+): Promise<Resultado> {
+  const errValidacion = validar(nombre, numeroCuenta);
+  if (errValidacion) return { ok: false, mensaje: errValidacion };
+
   const supabase = await createClient();
   const { error } = await supabase.from("grupos").update({
     nombre: nombre.trim(),
@@ -52,15 +60,17 @@ export async function editarConsorcio(
     tipo_cuenta_origen: tipoCuenta,
   }).eq("id", id);
   if (error) {
-    if (error.code === "23505") throw new Error("Ya existe un consorcio con ese nombre.");
-    throw new Error(error.message);
+    if (error.code === "23505") return { ok: false, mensaje: "Ya existe un consorcio con ese nombre." };
+    return { ok: false, mensaje: error.message };
   }
   revalidatePath("/dashboard/consorcios");
+  return { ok: true };
 }
 
-export async function eliminarConsorcio(id: string) {
+export async function eliminarConsorcio(id: string): Promise<Resultado> {
   const supabase = await createClient();
   const { error } = await supabase.from("grupos").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false, mensaje: error.message };
   revalidatePath("/dashboard/consorcios");
+  return { ok: true };
 }

@@ -113,15 +113,14 @@ export default function TablaConsorcios({ datos }: { datos: Consorcio[] }) {
           onGuardar={(nombre, cuenta, tipo) => {
             setError("");
             startTransition(async () => {
-              try {
-                if (modal.tipo === "crear") {
-                  await crearConsorcio(nombre, cuenta, tipo);
-                } else {
-                  await editarConsorcio(modal.consorcio.id, nombre, cuenta, tipo);
-                }
+              const resultado =
+                modal.tipo === "crear"
+                  ? await crearConsorcio(nombre, cuenta, tipo)
+                  : await editarConsorcio(modal.consorcio.id, nombre, cuenta, tipo);
+              if (resultado.ok) {
                 cerrar();
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "Error al guardar.");
+              } else {
+                setError(resultado.mensaje);
               }
             });
           }}
@@ -146,11 +145,11 @@ export default function TablaConsorcios({ datos }: { datos: Consorcio[] }) {
                 onClick={() => {
                   setError("");
                   startTransition(async () => {
-                    try {
-                      await eliminarConsorcio(modal.consorcio.id);
+                    const resultado = await eliminarConsorcio(modal.consorcio.id);
+                    if (resultado.ok) {
                       cerrar();
-                    } catch (e) {
-                      setError(e instanceof Error ? e.message : "Error al eliminar.");
+                    } else {
+                      setError(resultado.mensaje);
                     }
                   });
                 }}
