@@ -237,6 +237,53 @@ export async function responderYReenviarAction(formData: FormData) {
   revalidatePath("/dashboard/historial");
 }
 
+/** Elimina un pago individual de una solicitud y recalcula los totales. */
+export async function eliminarPago(paymentId: string): Promise<{ ok: true } | { ok: false; mensaje: string }> {
+  const { supabase, user, perfil } = await contexto();
+
+  const { data: pago, error: ePago } = await supabase
+    .from("payments")
+    .select("id, batch_id, beneficiario, monto, cuenta_banco")
+    .eq("id", paymentId)
+    .single();
+  if (ePago || !pago) return { ok: false, mensaje: "Pago no encontrado." };
+
+  const { error: eDel } = await supabase.from("payments").delete().eq("id", paymentId);
+  if (eDel) return { ok: false, mensaje: eDel.message };
+
+  const { data: restantes } = await supabase
+    .from("payments")
+    .select("monto, cuenta_banco")
+    .eq("batch_id", pago.batch_id);
+
+  const totalRegistros = restantes?.length ?? 0;
+  const montoTotal = (restantes ?? []).reduce((s, p) => s + Number(p.monto), 0);
+  const totalBeneficiarios = new Set((restantes ?? []).map((p) => p.cuenta_banco).filter(Boolean)).size;
+
+  const { error: eUpd } = await supabase
+    .from("payment_batches")
+    .update({
+      total_registros: totalRegistros,
+      monto_total: montoTotal,
+      total_beneficiarios: totalBeneficiarios,
+    })
+    .eq("id", pago.batch_id);
+  if (eUpd) return { ok: false, mensaje: eUpd.message };
+
+  const money = (n: number) => new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
+  await auditar(
+    supabase, user.id, perfil,
+    pago.batch_id,
+    "eliminar_pago",
+    `Pago eliminado: ${pago.beneficiario} · ${money(Number(pago.monto))} por ${perfil?.nombre ?? "usuario"}`,
+  );
+
+  revalidatePath("/dashboard/contabilidad");
+  revalidatePath("/dashboard/solicitudes");
+  revalidatePath("/dashboard/historial");
+  return { ok: true };
+}
+
 /** Auditar la generación del TXT (llamada desde el cliente tras generar). */
 export async function registrarTxtGenerado(batchId: string, nombreArchivo: string, tipo: string) {
   const { supabase, user, perfil } = await contexto();

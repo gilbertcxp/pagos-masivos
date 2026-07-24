@@ -5,6 +5,7 @@ import {
   puedePublicar,
   puedeGestionar,
   esContratos,
+  esContabilidad,
   type Estado,
   type Rol,
 } from "@/lib/auth/roles";
@@ -12,6 +13,7 @@ import { fmtFechaHora } from "@/lib/fecha";
 import BotonesFlujo from "./BotonesFlujo";
 import GeneradorReciboInline from "./GeneradorReciboInline";
 import BotonImprimir from "./BotonImprimir";
+import EliminarPagoBoton from "./EliminarPagoBoton";
 import { responderYReenviarAction } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
@@ -25,6 +27,7 @@ const ACCION_LABEL: Record<string, { texto: string; color: string; icono: string
   generar_txt:  { texto: "TXT generado",         color: "bg-violet-200 text-violet-800", icono: "⬇" },
   pagar:        { texto: "Pagada",               color: "bg-emerald-200 text-emerald-800", icono: "✓" },
   cancelar:     { texto: "Cancelada",            color: "bg-slate-300 text-slate-800", icono: "✕" },
+  eliminar_pago:{ texto: "Pago eliminado",       color: "bg-red-200 text-red-800",     icono: "🗑" },
 };
 
 export default async function DetalleSolicitud({
@@ -66,7 +69,7 @@ export default async function DetalleSolicitud({
 
   const { data: pagos } = await supabase
     .from("payments")
-    .select("fila, beneficiario, cedula_rnc, banco_destino, cuenta_banco, tipo_cuenta, monto, concepto, tiene_error, errores, estado_pago")
+    .select("id, fila, beneficiario, cedula_rnc, banco_destino, cuenta_banco, tipo_cuenta, monto, concepto, tiene_error, errores, estado_pago")
     .eq("batch_id", batchId)
     .order("fila", { ascending: true });
 
@@ -89,6 +92,11 @@ export default async function DetalleSolicitud({
   const mostrarCancelar    = esContratos(rol) || (soyDueno && estado === "borrador");
 
   const respuestaDevolucion = ((b as unknown) as { respuesta_devolucion?: string | null }).respuesta_devolucion ?? null;
+
+  const puedeEliminarPago =
+    esContabilidad(rol) &&
+    contexto === "contabilidad" &&
+    (estado === "publicada" || estado === "en_revision" || estado === "txt_generado");
 
   return (
     <div className="space-y-5">
@@ -204,6 +212,7 @@ export default async function DetalleSolicitud({
                 {contexto === "contabilidad" && (
                   <th className="px-3 py-2 text-center font-medium">Estado</th>
                 )}
+                {puedeEliminarPago && <th className="px-3 py-2"></th>}
               </tr>
             </thead>
             <tbody>
@@ -224,6 +233,15 @@ export default async function DetalleSolicitud({
                       ) : (
                         <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Pendiente</span>
                       )}
+                    </td>
+                  )}
+                  {puedeEliminarPago && (
+                    <td className="px-3 py-2 text-right">
+                      <EliminarPagoBoton
+                        paymentId={(p as { id: string }).id}
+                        beneficiario={p.beneficiario || "este beneficiario"}
+                        monto={money(Number(p.monto))}
+                      />
                     </td>
                   )}
                 </tr>
