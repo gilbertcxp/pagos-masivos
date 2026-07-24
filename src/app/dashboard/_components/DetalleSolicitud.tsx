@@ -96,7 +96,7 @@ export default async function DetalleSolicitud({
   const puedeEliminarPago =
     esContabilidad(rol) &&
     contexto === "contabilidad" &&
-    (estado === "publicada" || estado === "en_revision" || estado === "txt_generado");
+    (estado === "publicada" || estado === "en_revision" || estado === "txt_generado" || estado === "pagada");
 
   return (
     <div className="space-y-5">
