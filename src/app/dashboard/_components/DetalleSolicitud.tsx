@@ -94,8 +94,7 @@ export default async function DetalleSolicitud({
   const respuestaDevolucion = ((b as unknown) as { respuesta_devolucion?: string | null }).respuesta_devolucion ?? null;
 
   const puedeEliminarPago =
-    esContabilidad(rol) &&
-    contexto === "contabilidad" &&
+    ((esContabilidad(rol) && contexto === "contabilidad") || (esContratos(rol) && contexto === "contratos")) &&
     (estado === "publicada" || estado === "en_revision" || estado === "txt_generado" || estado === "pagada");
 
   return (
