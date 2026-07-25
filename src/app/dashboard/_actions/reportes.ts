@@ -5,38 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 
 type Resultado = { ok: true } | { ok: false; mensaje: string };
 
-async function notificarPorCorreo(
-  tipo: "problema" | "mejora",
-  mensaje: string,
-  pagina: string,
-  autor: string,
-) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const destino = process.env.REPORTES_EMAIL_DESTINO;
-  if (!apiKey || !destino) return;
-
-  const etiqueta = tipo === "problema" ? "Problema" : "Mejora";
-  await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "Pagos Masivos <onboarding@resend.dev>",
-      to: [destino],
-      subject: `[${etiqueta}] Nuevo reporte en Pagos Masivos`,
-      html: `
-        <p><strong>Tipo:</strong> ${etiqueta}</p>
-        <p><strong>Reportado por:</strong> ${autor}</p>
-        <p><strong>Página:</strong> ${pagina || "—"}</p>
-        <p><strong>Mensaje:</strong></p>
-        <p>${mensaje.replace(/\n/g, "<br/>")}</p>
-      `,
-    }),
-  });
-}
-
 export async function crearReporte(
   tipo: "problema" | "mejora",
   mensaje: string,
@@ -51,12 +19,6 @@ export async function crearReporte(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, mensaje: "Sesión expirada." };
 
-  const { data: perfil } = await supabase
-    .from("profiles")
-    .select("nombre, correo")
-    .eq("id", user.id)
-    .single();
-
   const { error } = await supabase.from("reportes").insert({
     user_id: user.id,
     tipo,
@@ -64,10 +26,6 @@ export async function crearReporte(
     pagina: pagina || null,
   });
   if (error) return { ok: false, mensaje: error.message };
-
-  try {
-    await notificarPorCorreo(tipo, texto, pagina, perfil?.nombre || perfil?.correo || "Usuario");
-  } catch (_) { /* no bloquear si falla el envio de correo */ }
 
   revalidatePath("/dashboard/reportes");
   return { ok: true };
