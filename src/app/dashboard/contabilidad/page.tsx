@@ -13,7 +13,7 @@ export default async function Page() {
   const { data: batches } = await supabase
     .from("payment_batches")
     .select(
-      "id, numero_solicitud, grupo, contrato, estado, total_registros, monto_total, created_at, published_at, motivo_devolucion, profiles:profiles!payment_batches_user_id_fkey(nombre, correo)"
+      "id, numero_solicitud, grupo, contrato, estado, total_registros, monto_total, created_at, published_at, motivo_devolucion, conceptos_pagar, profiles:profiles!payment_batches_user_id_fkey(nombre, correo)"
     )
     .in("estado", ["publicada", "en_revision", "devuelta", "txt_generado"])
     .order("published_at", { ascending: false, nullsFirst: false })
@@ -67,6 +67,7 @@ type Batch = {
   monto_total: number;
   created_at: string;
   published_at: string | null;
+  conceptos_pagar: string[] | null;
   profiles: { nombre: string | null; correo: string | null } | { nombre: string | null; correo: string | null }[] | null;
 };
 
@@ -93,6 +94,15 @@ function ListaBatches({ titulo, vacio, batches }: { titulo: string; vacio: strin
                       {b.contrato ? `${b.contrato} · ` : ""}
                       Creada por {nombre} · {fmtFecha(b.published_at ?? b.created_at)}
                     </p>
+                    {Array.isArray(b.conceptos_pagar) && b.conceptos_pagar.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {b.conceptos_pagar.map((c) => (
+                          <span key={c} className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-slate-600">{b.total_registros} pagos</span>
