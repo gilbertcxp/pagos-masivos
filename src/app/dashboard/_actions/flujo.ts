@@ -193,6 +193,29 @@ export async function marcarPagada(batchId: string) {
   revalidatePath("/dashboard/historial");
 }
 
+/** Contabilidad revierte una solicitud pagada de vuelta a pendiente (TXT generado). */
+export async function revertirPagada(batchId: string) {
+  const { supabase, user, perfil } = await contexto();
+  const { data: b } = await supabase
+    .from("payment_batches")
+    .select("estado, numero_solicitud")
+    .eq("id", batchId)
+    .single();
+  if (!b) throw new Error("Solicitud no encontrada.");
+  if (b.estado !== "pagada") {
+    throw new Error("Solo se puede revertir una solicitud marcada como pagada.");
+  }
+  await supabase.from("payment_batches").update({ estado: "txt_generado" }).eq("id", batchId);
+  await auditar(
+    supabase, user.id, perfil,
+    batchId,
+    "revertir_pago",
+    `Solicitud ${b.numero_solicitud ?? ""} devuelta a pendiente por ${perfil?.nombre ?? "usuario"}`,
+  );
+  revalidatePath("/dashboard/contabilidad");
+  revalidatePath("/dashboard/historial");
+}
+
 /** Cancela una solicitud con motivo obligatorio. */
 export async function cancelarSolicitud(batchId: string, motivo: string = "") {
   const { supabase, user, perfil } = await contexto();

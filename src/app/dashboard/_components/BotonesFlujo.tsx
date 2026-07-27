@@ -9,6 +9,7 @@ import {
   devolverSolicitud,
   marcarPagada,
   cancelarSolicitud,
+  revertirPagada,
 } from "../_actions/flujo";
 
 export default function BotonesFlujo({
@@ -17,6 +18,7 @@ export default function BotonesFlujo({
   mostrarPublicar,
   mostrarGestionar,
   mostrarCancelar,
+  mostrarRevertir,
   contexto,
   txtStoragePath,
   grupo,
@@ -27,6 +29,7 @@ export default function BotonesFlujo({
   mostrarPublicar: boolean;
   mostrarGestionar: boolean;
   mostrarCancelar: boolean;
+  mostrarRevertir: boolean;
   contexto: "contratos" | "contabilidad";
   txtStoragePath: string | null;
   grupo: string | null;
@@ -61,7 +64,7 @@ export default function BotonesFlujo({
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   }
 
-  const hayAcciones = mostrarPublicar || mostrarGestionar || mostrarCancelar || txtStoragePath;
+  const hayAcciones = mostrarPublicar || mostrarGestionar || mostrarCancelar || mostrarRevertir || txtStoragePath;
   if (!hayAcciones) return null;
 
   return (
@@ -105,6 +108,16 @@ export default function BotonesFlujo({
               </button>
             )}
           </>
+        )}
+
+        {mostrarRevertir && estado === "pagada" && (
+          <button
+            disabled={pendiente}
+            onClick={() => ejecutar(() => revertirPagada(batchId))}
+            className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+          >
+            Devolver a pendiente
+          </button>
         )}
 
         {txtStoragePath && (

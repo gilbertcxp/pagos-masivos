@@ -19,10 +19,21 @@ export default async function Page() {
     .order("published_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
+  // Pagadas recientes (para poder revertir a pendiente si se marcó por error)
+  const { data: pagadasData } = await supabase
+    .from("payment_batches")
+    .select(
+      "id, numero_solicitud, grupo, contrato, estado, total_registros, monto_total, created_at, published_at, motivo_devolucion, conceptos_pagar, profiles:profiles!payment_batches_user_id_fkey(nombre, correo)"
+    )
+    .eq("estado", "pagada")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
   const pendientes  = (batches ?? []).filter((b) => b.estado === "publicada");
   const enRevision  = (batches ?? []).filter((b) => b.estado === "en_revision");
   const devueltas   = (batches ?? []).filter((b) => b.estado === "devuelta");
   const conTxt      = (batches ?? []).filter((b) => b.estado === "txt_generado");
+  const pagadas     = pagadasData ?? [];
 
   return (
     <div className="space-y-5">
@@ -52,6 +63,9 @@ export default async function Page() {
       )}
       {conTxt.length > 0 && (
         <ListaBatches titulo="Con TXT generado (por pagar)" vacio="" batches={conTxt} />
+      )}
+      {pagadas.length > 0 && (
+        <ListaBatches titulo="Pagadas recientemente" vacio="" batches={pagadas} />
       )}
     </div>
   );

@@ -28,6 +28,7 @@ const ACCION_LABEL: Record<string, { texto: string; color: string; icono: string
   pagar:        { texto: "Pagada",               color: "bg-emerald-200 text-emerald-800", icono: "✓" },
   cancelar:     { texto: "Cancelada",            color: "bg-slate-300 text-slate-800", icono: "✕" },
   eliminar_pago:{ texto: "Pago eliminado",       color: "bg-red-200 text-red-800",     icono: "🗑" },
+  revertir_pago:{ texto: "Devuelta a pendiente", color: "bg-amber-200 text-amber-800", icono: "↺" },
 };
 
 export default async function DetalleSolicitud({
@@ -90,6 +91,7 @@ export default async function DetalleSolicitud({
   const mostrarPublicar    = puedePublicar(rol, estado, soyDueno) && !(estado === "devuelta" && contexto === "contratos");
   const mostrarGestionar   = puedeGestionar(rol, estado);
   const mostrarCancelar    = esContratos(rol) || (soyDueno && estado === "borrador");
+  const mostrarRevertir    = esContabilidad(rol) && contexto === "contabilidad";
 
   const respuestaDevolucion = ((b as unknown) as { respuesta_devolucion?: string | null }).respuesta_devolucion ?? null;
 
@@ -182,6 +184,7 @@ export default async function DetalleSolicitud({
             mostrarPublicar={mostrarPublicar}
             mostrarGestionar={mostrarGestionar}
             mostrarCancelar={mostrarCancelar}
+            mostrarRevertir={mostrarRevertir}
             contexto={contexto}
             txtStoragePath={b.txt_storage_path}
             grupo={b.grupo}
