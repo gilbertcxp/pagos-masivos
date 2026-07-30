@@ -183,6 +183,11 @@ export async function marcarPagada(batchId: string) {
     throw new Error("Solo se puede marcar como pagada una solicitud con TXT generado.");
   }
   await supabase.from("payment_batches").update({ estado: "pagada" }).eq("id", batchId);
+  await supabase
+    .from("payments")
+    .update({ estado_pago: "pagado", pagado_en: new Date().toISOString(), pagado_por: user.id })
+    .eq("batch_id", batchId)
+    .neq("estado_pago", "pagado");
   await auditar(
     supabase, user.id, perfil,
     batchId,
@@ -191,6 +196,7 @@ export async function marcarPagada(batchId: string) {
   );
   revalidatePath("/dashboard/contabilidad");
   revalidatePath("/dashboard/historial");
+  revalidatePath("/dashboard/recibos");
 }
 
 /** Contabilidad revierte una solicitud pagada de vuelta a pendiente (TXT generado). */
@@ -206,6 +212,10 @@ export async function revertirPagada(batchId: string) {
     throw new Error("Solo se puede revertir una solicitud marcada como pagada.");
   }
   await supabase.from("payment_batches").update({ estado: "txt_generado" }).eq("id", batchId);
+  await supabase
+    .from("payments")
+    .update({ estado_pago: "pendiente", pagado_en: null, pagado_por: null })
+    .eq("batch_id", batchId);
   await auditar(
     supabase, user.id, perfil,
     batchId,
@@ -214,6 +224,7 @@ export async function revertirPagada(batchId: string) {
   );
   revalidatePath("/dashboard/contabilidad");
   revalidatePath("/dashboard/historial");
+  revalidatePath("/dashboard/recibos");
 }
 
 /** Cancela una solicitud con motivo obligatorio. */
