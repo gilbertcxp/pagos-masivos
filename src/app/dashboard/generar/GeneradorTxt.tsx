@@ -11,6 +11,7 @@ import {
   type ResultadoTxt,
 } from "@/lib/txt/generarTerceros";
 import { generarTxtACH } from "@/lib/txt/generarACH";
+import { consolidarPorCuenta, quitarExtension } from "@/lib/txt/consolidar";
 import { registrarTxtGenerado } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
@@ -179,7 +180,9 @@ export default function GeneradorTxt() {
       moneda: grupo.moneda || "DOP",
       numeroCuenta: grupo.numero_cuenta_origen,
     };
-    const res = generarTxtTerceros(pagos, origen, { descripcionDesde: "descripcion" });
+    const descripcionExcel = quitarExtension(sel.excel_file_name ?? "") || "Pago";
+    const pagosConsolidados = consolidarPorCuenta(pagos, descripcionExcel);
+    const res = generarTxtTerceros(pagosConsolidados, origen, { descripcionDesde: "descripcion" });
     setResultadoTerceros(res);
     setGenerando(null);
 
@@ -216,7 +219,9 @@ export default function GeneradorTxt() {
       moneda: grupo.moneda || "DOP",
       numeroCuenta: grupo.numero_cuenta_origen,
     };
-    const res = generarTxtACH(pagos, origen, { descripcionDesde: "descripcion" });
+    const descripcionExcel = quitarExtension(sel.excel_file_name ?? "") || "Pago";
+    const pagosConsolidados = consolidarPorCuenta(pagos, descripcionExcel);
+    const res = generarTxtACH(pagosConsolidados, origen, { descripcionDesde: "descripcion" });
     setResultadoACH(res);
     setGenerando(null);
 
