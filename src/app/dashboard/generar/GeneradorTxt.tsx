@@ -167,10 +167,11 @@ export default function GeneradorTxt() {
   function nombreArchivo(tipo: "terceros" | "ach") {
     const numero = sel?.numero_solicitud
       ? normNombre(sel.numero_solicitud).replace(/[^A-Z0-9-]+/g, "_")
-      : normNombre(sel?.grupo ?? grupo?.nombre ?? "grupo").replace(/[^A-Z0-9]+/g, "_");
+      : "SOLICITUD";
+    const grupoSlug = normNombre(sel?.grupo ?? grupo?.nombre ?? "grupo").replace(/[^A-Z0-9]+/g, "_");
     return tipo === "terceros"
-      ? `TERCEROS_${numero}.txt`
-      : `ACH_${numero}.txt`;
+      ? `TERCEROS_${numero}_${grupoSlug}.txt`
+      : `ACH_${numero}_${grupoSlug}.txt`;
   }
 
   async function generarTerceros() {
