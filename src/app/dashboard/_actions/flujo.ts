@@ -179,8 +179,8 @@ export async function marcarPagada(batchId: string) {
     .eq("id", batchId)
     .single();
   if (!b) throw new Error("Solicitud no encontrada.");
-  if (b.estado !== "txt_generado") {
-    throw new Error("Solo se puede marcar como pagada una solicitud con TXT generado.");
+  if (!(b.estado === "publicada" || b.estado === "en_revision" || b.estado === "txt_generado")) {
+    throw new Error(`No se puede marcar como pagada una solicitud en estado "${b.estado}".`);
   }
   await supabase.from("payment_batches").update({ estado: "pagada" }).eq("id", batchId);
   await supabase

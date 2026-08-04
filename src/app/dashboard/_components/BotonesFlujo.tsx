@@ -98,7 +98,7 @@ export default function BotonesFlujo({
                 Devolver a Contratos
               </button>
             )}
-            {estado === "txt_generado" && (
+            {(estado === "publicada" || estado === "en_revision" || estado === "txt_generado") && (
               <button
                 disabled={pendiente}
                 onClick={() => ejecutar(() => marcarPagada(batchId))}
