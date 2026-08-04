@@ -82,6 +82,33 @@ export default function GeneradorRecibo() {
     );
   }
 
+  // Filtros de la lista de procesos (antes de entrar a una solicitud)
+  const [busquedaProcesos, setBusquedaProcesos] = useState("");
+  const [filtroTipoProceso, setFiltroTipoProceso] = useState<"todos" | "terceros" | "interbancaria">("todos");
+  const [filtroEstadoProceso, setFiltroEstadoProceso] = useState<"todos" | "txt_generado" | "pagada" | "completado">("todos");
+  const [ordenProcesos, setOrdenProcesos] = useState<{ campo: "fecha" | "grupo" | "monto"; dir: "asc" | "desc" }>({
+    campo: "fecha",
+    dir: "desc",
+  });
+
+  const batchesFiltrados = useMemo(() => {
+    const termino = busquedaProcesos.trim().toLowerCase();
+    let lista = batches.filter((b) => {
+      if (termino && !(b.grupo ?? "").toLowerCase().includes(termino)) return false;
+      if (filtroTipoProceso !== "todos" && b.tipo_pago !== filtroTipoProceso) return false;
+      if (filtroEstadoProceso !== "todos" && b.estado !== filtroEstadoProceso) return false;
+      return true;
+    });
+    lista = [...lista].sort((a, b) => {
+      let cmp = 0;
+      if (ordenProcesos.campo === "fecha") cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      else if (ordenProcesos.campo === "monto") cmp = Number(a.monto_total) - Number(b.monto_total);
+      else cmp = (a.grupo ?? "").localeCompare(b.grupo ?? "");
+      return ordenProcesos.dir === "asc" ? cmp : -cmp;
+    });
+    return lista;
+  }, [batches, busquedaProcesos, filtroTipoProceso, filtroEstadoProceso, ordenProcesos]);
+
   const pagosFiltrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
     let lista = pagos.filter((p) => {
@@ -302,39 +329,105 @@ export default function GeneradorRecibo() {
 
       {!sel ? (
         /* ── LISTA DE PROCESOS ───────────────────────────────────────────────── */
-        <div className="rounded-2xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-5 py-3 font-semibold text-slate-800">
-            Procesos con TXT generado
+        <div className="space-y-3">
+          {/* Filtros */}
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4">
+            <input
+              type="text"
+              value={busquedaProcesos}
+              onChange={(e) => setBusquedaProcesos(e.target.value)}
+              placeholder="Buscar por nombre de grupo…"
+              className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <select
+              value={filtroTipoProceso}
+              onChange={(e) => setFiltroTipoProceso(e.target.value as typeof filtroTipoProceso)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="todos">Todos los tipos</option>
+              <option value="terceros">Terceros</option>
+              <option value="interbancaria">Interbancario</option>
+            </select>
+            <select
+              value={filtroEstadoProceso}
+              onChange={(e) => setFiltroEstadoProceso(e.target.value as typeof filtroEstadoProceso)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="todos">Todos los estados</option>
+              <option value="txt_generado">TXT Generado</option>
+              <option value="pagada">Pagada</option>
+              <option value="completado">Completado</option>
+            </select>
+            <select
+              value={`${ordenProcesos.campo}_${ordenProcesos.dir}`}
+              onChange={(e) => {
+                const [campo, dir] = e.target.value.split("_") as ["fecha" | "grupo" | "monto", "asc" | "desc"];
+                setOrdenProcesos({ campo, dir });
+              }}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="fecha_desc">Más recientes primero</option>
+              <option value="fecha_asc">Más antiguos primero</option>
+              <option value="grupo_asc">Nombre A-Z</option>
+              <option value="grupo_desc">Nombre Z-A</option>
+              <option value="monto_desc">Monto mayor a menor</option>
+              <option value="monto_asc">Monto menor a mayor</option>
+            </select>
+            {(busquedaProcesos || filtroTipoProceso !== "todos" || filtroEstadoProceso !== "todos") && (
+              <button
+                onClick={() => {
+                  setBusquedaProcesos("");
+                  setFiltroTipoProceso("todos");
+                  setFiltroEstadoProceso("todos");
+                }}
+                className="text-xs font-medium text-slate-500 hover:text-slate-700"
+              >
+                Limpiar filtros
+              </button>
+            )}
+            <span className="ml-auto text-xs text-slate-400">
+              {batchesFiltrados.length} de {batches.length} procesos
+            </span>
           </div>
-          {cargando ? (
-            <p className="px-5 py-10 text-center text-slate-400">Cargando…</p>
-          ) : batches.length === 0 ? (
-            <p className="px-5 py-10 text-center text-slate-400">
-              No hay procesos con TXT generado aún.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {batches.map((b) => (
-                <li key={b.id}>
-                  <button
-                    onClick={() => seleccionar(b)}
-                    className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-slate-50"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-800">{b.grupo || "Proceso"}</p>
-                      <p className="text-xs text-slate-500">
-                        {fmtFechaHora(b.created_at)} · {b.total_registros}{" "}
-                        pagos · {money(Number(b.monto_total))}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs capitalize text-slate-600">
-                      {b.estado.replace(/_/g, " ")}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+
+          <div className="rounded-2xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-100 px-5 py-3 font-semibold text-slate-800">
+              Procesos con TXT generado
+            </div>
+            {cargando ? (
+              <p className="px-5 py-10 text-center text-slate-400">Cargando…</p>
+            ) : batches.length === 0 ? (
+              <p className="px-5 py-10 text-center text-slate-400">
+                No hay procesos con TXT generado aún.
+              </p>
+            ) : batchesFiltrados.length === 0 ? (
+              <p className="px-5 py-10 text-center text-slate-400">
+                Ningún proceso coincide con los filtros.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {batchesFiltrados.map((b) => (
+                  <li key={b.id}>
+                    <button
+                      onClick={() => seleccionar(b)}
+                      className="flex w-full items-center justify-between px-5 py-3 text-left hover:bg-slate-50"
+                    >
+                      <div>
+                        <p className="font-medium text-slate-800">{b.grupo || "Proceso"}</p>
+                        <p className="text-xs text-slate-500">
+                          {fmtFechaHora(b.created_at)} · {b.total_registros}{" "}
+                          pagos · {money(Number(b.monto_total))}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs capitalize text-slate-600">
+                        {b.estado.replace(/_/g, " ")}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       ) : (
         /* ── DETALLE DEL PROCESO ─────────────────────────────────────────────── */
