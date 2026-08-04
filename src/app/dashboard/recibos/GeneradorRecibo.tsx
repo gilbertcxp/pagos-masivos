@@ -69,10 +69,41 @@ export default function GeneradorRecibo() {
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState<"todos" | "pendiente" | "pagado">("todos");
+  const [orden, setOrden] = useState<{ campo: "fila" | "beneficiario" | "monto"; dir: "asc" | "desc" }>({
+    campo: "fila",
+    dir: "asc",
+  });
+
+  function ordenarPor(campo: "fila" | "beneficiario" | "monto") {
+    setOrden((prev) =>
+      prev.campo === campo ? { campo, dir: prev.dir === "asc" ? "desc" : "asc" } : { campo, dir: "asc" }
+    );
+  }
+
+  const pagosFiltrados = useMemo(() => {
+    const termino = busqueda.trim().toLowerCase();
+    let lista = pagos.filter((p) => {
+      if (termino && !(p.beneficiario ?? "").toLowerCase().includes(termino)) return false;
+      if (filtroEstado === "pendiente" && p.estado_pago === "pagado") return false;
+      if (filtroEstado === "pagado" && p.estado_pago !== "pagado") return false;
+      return true;
+    });
+    lista = [...lista].sort((a, b) => {
+      let cmp = 0;
+      if (orden.campo === "fila") cmp = (a.fila ?? 0) - (b.fila ?? 0);
+      else if (orden.campo === "monto") cmp = Number(a.monto) - Number(b.monto);
+      else cmp = (a.beneficiario ?? "").localeCompare(b.beneficiario ?? "");
+      return orden.dir === "asc" ? cmp : -cmp;
+    });
+    return lista;
+  }, [pagos, busqueda, filtroEstado, orden]);
+
   const pagosSeleccionados = pagos.filter((p) => seleccionados.has(p.id));
   const montoSeleccionado = pagosSeleccionados.reduce((s, p) => s + Number(p.monto), 0);
   const todosSeleccionados =
-    pagos.length > 0 && pagosSeleccionados.length === pagos.length;
+    pagosFiltrados.length > 0 && pagosFiltrados.every((p) => seleccionados.has(p.id));
   const puedeGenerar = pagosSeleccionados.length > 0 && !trabajando;
 
   const cargar = useCallback(async () => {
@@ -95,6 +126,9 @@ export default function GeneradorRecibo() {
     setSel(b);
     setError("");
     setOk("");
+    setBusqueda("");
+    setFiltroEstado("todos");
+    setOrden({ campo: "fila", dir: "asc" });
     setCargandoPagos(true);
 
     const [{ data: pays }, { data: receipt }] = await Promise.all([
@@ -129,11 +163,15 @@ export default function GeneradorRecibo() {
   }
 
   function toggleTodos() {
-    if (todosSeleccionados) {
-      setSeleccionados(new Set());
-    } else {
-      setSeleccionados(new Set(pagos.map((p) => p.id)));
-    }
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (todosSeleccionados) {
+        for (const p of pagosFiltrados) next.delete(p.id);
+      } else {
+        for (const p of pagosFiltrados) next.add(p.id);
+      }
+      return next;
+    });
   }
 
   function descargarZip(blob: Blob) {
@@ -334,6 +372,40 @@ export default function GeneradorRecibo() {
                 </p>
               ) : (
                 <>
+                  {/* Filtros */}
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={busqueda}
+                      onChange={(e) => setBusqueda(e.target.value)}
+                      placeholder="Buscar por nombre…"
+                      className="w-full max-w-xs rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <select
+                      value={filtroEstado}
+                      onChange={(e) => setFiltroEstado(e.target.value as typeof filtroEstado)}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="todos">Todos los estados</option>
+                      <option value="pendiente">Pendiente</option>
+                      <option value="pagado">Pagado</option>
+                    </select>
+                    {(busqueda || filtroEstado !== "todos") && (
+                      <button
+                        onClick={() => {
+                          setBusqueda("");
+                          setFiltroEstado("todos");
+                        }}
+                        className="text-xs font-medium text-slate-500 hover:text-slate-700"
+                      >
+                        Limpiar filtros
+                      </button>
+                    )}
+                    <span className="ml-auto text-xs text-slate-400">
+                      {pagosFiltrados.length} de {pagos.length} pagos
+                    </span>
+                  </div>
+
                   <div className="overflow-x-auto rounded-xl border border-slate-200">
                     <table className="w-full text-sm">
                       <thead>
@@ -343,16 +415,24 @@ export default function GeneradorRecibo() {
                               type="checkbox"
                               checked={todosSeleccionados}
                               onChange={toggleTodos}
-                              disabled={pagos.length === 0}
+                              disabled={pagosFiltrados.length === 0}
                               title={
                                 todosSeleccionados ? "Deseleccionar todos" : "Seleccionar todos"
                               }
                               className="h-4 w-4 cursor-pointer rounded border-slate-300 text-blue-600 disabled:opacity-40"
                             />
                           </th>
-                          <th className="px-3 py-2.5 text-xs font-semibold text-slate-500">#</th>
-                          <th className="px-3 py-2.5 text-xs font-semibold text-slate-500">
-                            Beneficiario
+                          <th
+                            onClick={() => ordenarPor("fila")}
+                            className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                          >
+                            # {orden.campo === "fila" && (orden.dir === "asc" ? "↑" : "↓")}
+                          </th>
+                          <th
+                            onClick={() => ordenarPor("beneficiario")}
+                            className="cursor-pointer select-none px-3 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                          >
+                            Beneficiario {orden.campo === "beneficiario" && (orden.dir === "asc" ? "↑" : "↓")}
                           </th>
                           <th className="hidden px-3 py-2.5 text-xs font-semibold text-slate-500 sm:table-cell">
                             Cédula / RNC
@@ -360,8 +440,11 @@ export default function GeneradorRecibo() {
                           <th className="hidden px-3 py-2.5 text-xs font-semibold text-slate-500 md:table-cell">
                             Banco
                           </th>
-                          <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                            Monto
+                          <th
+                            onClick={() => ordenarPor("monto")}
+                            className="cursor-pointer select-none px-3 py-2.5 text-right text-xs font-semibold text-slate-500 hover:text-slate-700"
+                          >
+                            Monto {orden.campo === "monto" && (orden.dir === "asc" ? "↑" : "↓")}
                           </th>
                           <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
                             Estado
@@ -369,7 +452,14 @@ export default function GeneradorRecibo() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {pagos.map((p) => {
+                        {pagosFiltrados.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-400">
+                              Ningún pago coincide con los filtros.
+                            </td>
+                          </tr>
+                        ) : (
+                        pagosFiltrados.map((p) => {
                           const checked = seleccionados.has(p.id);
                           const pagado = p.estado_pago === "pagado";
                           return (
@@ -415,7 +505,8 @@ export default function GeneradorRecibo() {
                               </td>
                             </tr>
                           );
-                        })}
+                        })
+                        )}
                       </tbody>
                     </table>
                   </div>
