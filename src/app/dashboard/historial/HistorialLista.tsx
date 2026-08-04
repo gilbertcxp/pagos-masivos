@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtFechaHoraCorta } from "@/lib/fecha";
+import { descargarConNombre } from "@/lib/descargarArchivo";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -65,14 +66,15 @@ export default function HistorialLista() {
     cargar();
   }, [cargar]);
 
-  async function descargar(bucket: string, path: string | null | undefined) {
+  async function descargar(bucket: string, path: string | null | undefined, nombre?: string | null) {
     if (!path) return;
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60);
     if (error || !data) {
       alert("No se pudo generar el enlace de descarga.");
       return;
     }
-    window.open(data.signedUrl, "_blank");
+    if (nombre) await descargarConNombre(data.signedUrl, nombre);
+    else window.open(data.signedUrl, "_blank");
   }
 
   const filtrados = batches.filter((b) => {
@@ -148,7 +150,7 @@ export default function HistorialLista() {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         <Chip activo={!!b.excel_storage_path} onClick={() => descargar("excel-solicitudes", b.excel_storage_path)}>Excel</Chip>
-                        <Chip activo={!!b.txt_storage_path} onClick={() => descargar("txt-generados", b.txt_storage_path)}>TXT</Chip>
+                        <Chip activo={!!b.txt_storage_path} onClick={() => descargar("txt-generados", b.txt_storage_path, b.txt_file_name)}>TXT</Chip>
                         <Chip activo={!!rec?.comprobante_storage_path} onClick={() => descargar("comprobantes", rec?.comprobante_storage_path)}>Comprob.</Chip>
                         <Chip activo={!!rec?.recibo_storage_path} onClick={() => descargar("recibos", rec?.recibo_storage_path)}>Recibo</Chip>
                       </div>

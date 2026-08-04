@@ -26,6 +26,7 @@ const normNombre = (s: string) =>
 
 type Batch = {
   id: string;
+  numero_solicitud: string | null;
   grupo: string | null;
   excel_file_name: string | null;
   total_registros: number;
@@ -67,7 +68,7 @@ export default function GeneradorTxt() {
     setCargando(true);
     const { data } = await supabase
       .from("payment_batches")
-      .select("id, grupo, excel_file_name, total_registros, monto_total, estado, created_at")
+      .select("id, numero_solicitud, grupo, excel_file_name, total_registros, monto_total, estado, created_at")
       .in("estado", ["publicada", "en_revision", "txt_generado", "borrador"])
       .order("created_at", { ascending: false });
     setSolicitudes(data ?? []);
@@ -81,7 +82,7 @@ export default function GeneradorTxt() {
     (async () => {
       const { data } = await supabase
         .from("payment_batches")
-        .select("id, grupo, excel_file_name, total_registros, monto_total, estado, created_at")
+        .select("id, numero_solicitud, grupo, excel_file_name, total_registros, monto_total, estado, created_at")
         .eq("id", batchIdUrl)
         .single();
       if (data) seleccionar(data as Batch);
@@ -164,11 +165,12 @@ export default function GeneradorTxt() {
   }
 
   function nombreArchivo(tipo: "terceros" | "ach") {
-    const fecha = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const slug = normNombre(sel?.grupo ?? grupo?.nombre ?? "grupo").replace(/[^A-Z0-9]+/g, "_");
+    const numero = sel?.numero_solicitud
+      ? normNombre(sel.numero_solicitud).replace(/[^A-Z0-9-]+/g, "_")
+      : normNombre(sel?.grupo ?? grupo?.nombre ?? "grupo").replace(/[^A-Z0-9]+/g, "_");
     return tipo === "terceros"
-      ? `TERCEROS_${slug}_${fecha}.txt`
-      : `ACH_${slug}_${fecha}.txt`;
+      ? `TERCEROS_${numero}.txt`
+      : `ACH_${numero}.txt`;
   }
 
   async function generarTerceros() {

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { descargarConNombre } from "@/lib/descargarArchivo";
 import {
   publicarSolicitud,
   devolverSolicitud,
@@ -21,6 +22,7 @@ export default function BotonesFlujo({
   mostrarRevertir,
   contexto,
   txtStoragePath,
+  txtFileName,
   grupo,
   tipoPago,
 }: {
@@ -32,6 +34,7 @@ export default function BotonesFlujo({
   mostrarRevertir: boolean;
   contexto: "contratos" | "contabilidad";
   txtStoragePath: string | null;
+  txtFileName: string | null;
   grupo: string | null;
   tipoPago: string | null;
 }) {
@@ -61,7 +64,7 @@ export default function BotonesFlujo({
     const { data } = await supabase.storage
       .from("txt-generados")
       .createSignedUrl(txtStoragePath, 60);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    if (data?.signedUrl) await descargarConNombre(data.signedUrl, txtFileName || "archivo.txt");
   }
 
   const hayAcciones = mostrarPublicar || mostrarGestionar || mostrarCancelar || mostrarRevertir || txtStoragePath;

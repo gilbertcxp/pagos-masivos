@@ -187,6 +187,7 @@ export default async function DetalleSolicitud({
             mostrarRevertir={mostrarRevertir}
             contexto={contexto}
             txtStoragePath={b.txt_storage_path}
+            txtFileName={b.txt_file_name}
             grupo={b.grupo}
             tipoPago={b.tipo_pago}
           />
