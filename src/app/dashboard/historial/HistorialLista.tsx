@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fmtFechaHoraCorta } from "@/lib/fecha";
 import { descargarConNombre } from "@/lib/descargarArchivo";
+import { ETIQUETA_ESTADO, type Estado } from "@/lib/auth/roles";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -33,13 +34,10 @@ type Batch = {
   receipts: Receipt[] | null;
 };
 
-const ESTADOS: Record<string, { texto: string; clase: string }> = {
-  borrador: { texto: "Borrador", clase: "bg-slate-100 text-slate-600" },
-  txt_generado: { texto: "TXT generado", clase: "bg-violet-100 text-violet-700" },
-  pagado: { texto: "Pagado", clase: "bg-amber-100 text-amber-700" },
-  completado: { texto: "Completado", clase: "bg-emerald-100 text-emerald-700" },
-  anulado: { texto: "Anulado", clase: "bg-red-100 text-red-700" },
-};
+// Estados reales usados hoy en la plataforma (se excluyen los valores legacy
+// como "pagado"/"completado"/"anulado" que ya no se generan, para no
+// duplicar opciones en el filtro).
+const ESTADOS_FILTRO: Estado[] = ["borrador", "publicada", "en_revision", "devuelta", "txt_generado", "pagada", "cancelada"];
 
 export default function HistorialLista() {
   const supabase = useMemo(() => createClient(), []);
@@ -49,15 +47,23 @@ export default function HistorialLista() {
   const [busca, setBusca] = useState("");
   const [fEstado, setFEstado] = useState("");
   const [fTipo, setFTipo] = useState("");
+  const [orden, setOrden] = useState<{ campo: "fecha" | "grupo" | "monto"; dir: "asc" | "desc" }>({
+    campo: "fecha",
+    dir: "desc",
+  });
+
+  const [errorCarga, setErrorCarga] = useState("");
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    const { data } = await supabase
+    setErrorCarga("");
+    const { data, error } = await supabase
       .from("payment_batches")
       .select(
-        "id, grupo, excel_file_name, excel_storage_path, txt_file_name, txt_storage_path, tipo_pago, estado, total_registros, monto_total, created_at, profiles(nombre, correo), receipts(numero_recibo, comprobante_file_name, comprobante_storage_path, recibo_file_name, recibo_storage_path, estado_pago)",
+        "id, grupo, excel_file_name, excel_storage_path, txt_file_name, txt_storage_path, tipo_pago, estado, total_registros, monto_total, created_at, profiles:profiles!payment_batches_user_id_fkey(nombre, correo), receipts(numero_recibo, comprobante_file_name, comprobante_storage_path, recibo_file_name, recibo_storage_path, estado_pago)",
       )
       .order("created_at", { ascending: false });
+    if (error) setErrorCarga(error.message);
     setBatches((data as unknown as Batch[]) ?? []);
     setCargando(false);
   }, [supabase]);
@@ -77,13 +83,25 @@ export default function HistorialLista() {
     else window.open(data.signedUrl, "_blank");
   }
 
-  const filtrados = batches.filter((b) => {
-    const texto = `${b.grupo ?? ""} ${b.excel_file_name ?? ""} ${b.profiles?.nombre ?? ""} ${b.profiles?.correo ?? ""}`.toLowerCase();
-    if (busca && !texto.includes(busca.toLowerCase())) return false;
-    if (fEstado && b.estado !== fEstado) return false;
-    if (fTipo && b.tipo_pago !== fTipo) return false;
-    return true;
-  });
+  const filtrados = useMemo(() => {
+    let lista = batches.filter((b) => {
+      const texto = `${b.grupo ?? ""} ${b.excel_file_name ?? ""} ${b.profiles?.nombre ?? ""} ${b.profiles?.correo ?? ""}`.toLowerCase();
+      if (busca && !texto.includes(busca.toLowerCase())) return false;
+      if (fEstado && b.estado !== fEstado) return false;
+      if (fTipo && b.tipo_pago !== fTipo) return false;
+      return true;
+    });
+    lista = [...lista].sort((a, b) => {
+      let cmp = 0;
+      if (orden.campo === "fecha") cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      else if (orden.campo === "monto") cmp = Number(a.monto_total) - Number(b.monto_total);
+      else cmp = (a.grupo ?? "").localeCompare(b.grupo ?? "");
+      return orden.dir === "asc" ? cmp : -cmp;
+    });
+    return lista;
+  }, [batches, busca, fEstado, fTipo, orden]);
+
+  const hayFiltrosActivos = busca !== "" || fEstado !== "" || fTipo !== "";
 
   return (
     <div className="space-y-5">
@@ -92,8 +110,14 @@ export default function HistorialLista() {
         <p className="text-slate-500">Todos los procesos: solicitud, TXT, comprobante y recibo.</p>
       </div>
 
+      {errorCarga && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          No se pudo cargar el historial: {errorCarga}
+        </div>
+      )}
+
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
@@ -107,11 +131,35 @@ export default function HistorialLista() {
         </select>
         <select value={fEstado} onChange={(e) => setFEstado(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
           <option value="">Todos los estados</option>
-          {Object.entries(ESTADOS).map(([k, v]) => (
-            <option key={k} value={k}>{v.texto}</option>
+          {ESTADOS_FILTRO.map((k) => (
+            <option key={k} value={k}>{ETIQUETA_ESTADO[k].texto}</option>
           ))}
         </select>
+        <select
+          value={`${orden.campo}_${orden.dir}`}
+          onChange={(e) => {
+            const [campo, dir] = e.target.value.split("_") as ["fecha" | "grupo" | "monto", "asc" | "desc"];
+            setOrden({ campo, dir });
+          }}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        >
+          <option value="fecha_desc">Más recientes primero</option>
+          <option value="fecha_asc">Más antiguos primero</option>
+          <option value="grupo_asc">Nombre A-Z</option>
+          <option value="grupo_desc">Nombre Z-A</option>
+          <option value="monto_desc">Monto mayor a menor</option>
+          <option value="monto_asc">Monto menor a mayor</option>
+        </select>
+        {hayFiltrosActivos && (
+          <button
+            onClick={() => { setBusca(""); setFEstado(""); setFTipo(""); }}
+            className="text-xs font-medium text-slate-500 hover:text-slate-700"
+          >
+            Limpiar filtros
+          </button>
+        )}
         <button onClick={cargar} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Actualizar</button>
+        <span className="ml-auto text-xs text-slate-400">{filtrados.length} de {batches.length} procesos</span>
       </div>
 
       {/* Tabla */}
@@ -137,7 +185,7 @@ export default function HistorialLista() {
             ) : (
               filtrados.map((b) => {
                 const rec = b.receipts?.[0];
-                const est = ESTADOS[b.estado] ?? { texto: b.estado, clase: "bg-slate-100 text-slate-600" };
+                const est = ETIQUETA_ESTADO[b.estado as Estado] ?? { texto: b.estado, clase: "bg-slate-100 text-slate-600" };
                 return (
                   <tr key={b.id} className="border-t border-slate-100">
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">{fmtFechaHoraCorta(b.created_at)}</td>
