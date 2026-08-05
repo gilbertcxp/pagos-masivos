@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ETIQUETA_ESTADO, type Estado } from "@/lib/auth/roles";
 import { fmtFecha } from "@/lib/fecha";
+import { marcarPagada } from "@/app/dashboard/_actions/flujo";
 
 const money = (n: number) =>
   new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(n);
@@ -168,10 +170,15 @@ function ListaBatches({ titulo, vacio, batches }: { titulo: string; vacio: strin
             const est = ETIQUETA_ESTADO[b.estado as Estado] ?? { texto: b.estado, clase: "bg-slate-100" };
             const p = Array.isArray(b.profiles) ? b.profiles[0] : b.profiles;
             const nombre = p?.nombre || p?.correo || "—";
+            const esTxtGenerado = b.estado === "txt_generado";
             return (
-              <li key={b.id}>
-                <Link href={`/dashboard/contabilidad/${b.id}`} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 hover:bg-slate-50">
-                  <div>
+              <li key={b.id} className="flex items-center">
+                {/* Toda la info es clickeable hacia el detalle */}
+                <Link
+                  href={`/dashboard/contabilidad/${b.id}`}
+                  className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-5 py-3 hover:bg-slate-50"
+                >
+                  <div className="min-w-0">
                     <p className="font-medium text-slate-800">{b.numero_solicitud ?? "—"} · {b.grupo || "—"}</p>
                     <p className="text-xs text-slate-500">
                       {b.contrato ? `${b.contrato} · ` : ""}
@@ -193,10 +200,99 @@ function ListaBatches({ titulo, vacio, batches }: { titulo: string; vacio: strin
                     <span className={"rounded-full px-2.5 py-1 text-xs " + est.clase}>{est.texto}</span>
                   </div>
                 </Link>
+
+                {/* Botón Aplicar Pago — solo en filas con TXT generado */}
+                {esTxtGenerado && (
+                  <div className="flex-shrink-0 pr-4">
+                    <AplicarPagoBoton batchId={b.id} numero={b.numero_solicitud ?? b.id} />
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
+      )}
+    </div>
+  );
+}
+
+/** Botón inline para aplicar pago desde la lista — solo aparece en solicitudes con TXT generado. */
+function AplicarPagoBoton({ batchId, numero }: { batchId: string; numero: string }) {
+  const router = useRouter();
+  const [pendiente, startTransition] = useTransition();
+  const [confirmando, setConfirmando] = useState(false);
+  const [error, setError] = useState("");
+
+  function confirmar(e: React.MouseEvent) {
+    e.preventDefault(); // evita que el click propague al Link padre
+    setError("");
+    setConfirmando(true);
+  }
+
+  function cancelar(e: React.MouseEvent) {
+    e.preventDefault();
+    setConfirmando(false);
+  }
+
+  function aplicar(e: React.MouseEvent) {
+    e.preventDefault();
+    setConfirmando(false);
+    startTransition(async () => {
+      try {
+        await marcarPagada(batchId);
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Error al aplicar el pago");
+      }
+    });
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={confirmar}
+        disabled={pendiente}
+        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 whitespace-nowrap"
+      >
+        {pendiente ? "Aplicando…" : "✓ Aplicar Pago"}
+      </button>
+
+      {error && (
+        <p className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 shadow z-10">
+          {error}
+        </p>
+      )}
+
+      {/* Mini modal de confirmación */}
+      {confirmando && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={cancelar}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-slate-800">¿Aplicar pago?</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Esto marcará la solicitud <span className="font-medium text-slate-700">{numero}</span> como <span className="font-medium text-emerald-700">Pagada</span> y actualizará todos sus registros.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={cancelar}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={aplicar}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
