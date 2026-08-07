@@ -234,6 +234,26 @@ export function parseSolicitudRows(rows: unknown[][]): ParsedSolicitud {
     }
   }
 
+  // 5b) Avisar cuando la misma cedula aparece con cuentas distintas:
+  // probablemente un error tipografico en el numero de cuenta.
+  const cuentasPorCedula = new Map<string, Set<string>>();
+  for (const p of pagos) {
+    if (!p.cedula || !p.cuenta) continue;
+    const ced = normalizar(p.cedula);
+    if (!cuentasPorCedula.has(ced)) cuentasPorCedula.set(ced, new Set());
+    cuentasPorCedula.get(ced)!.add(p.cuenta);
+  }
+  for (const p of pagos) {
+    if (!p.cedula) continue;
+    const cuentas = cuentasPorCedula.get(normalizar(p.cedula));
+    if (cuentas && cuentas.size > 1) {
+      const otras = [...cuentas].filter((c) => c !== p.cuenta).join(", ");
+      p.advertencias.push(
+        `Esta cédula tiene ${cuentas.size} cuentas diferentes en el archivo (${[...cuentas].join(", ")}) — verificar posible error tipográfico`
+      );
+    }
+  }
+
   const montoTotal = pagos.reduce((s, p) => s + p.monto, 0);
   const beneficiarios = new Set(pagos.map((p) => p.cuenta).filter(Boolean)).size;
 
